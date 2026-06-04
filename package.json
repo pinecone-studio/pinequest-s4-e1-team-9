@@ -1,0 +1,20 @@
+{
+  "name": "pinequest-s4-e1-team-9",
+  "private": true,
+  "version": "0.0.1",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  }
+}
