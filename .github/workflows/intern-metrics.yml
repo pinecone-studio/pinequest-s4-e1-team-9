@@ -26,17 +26,19 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
+          bun-version: 1.3.14
 
       # Install in isolated folder to avoid monorepo dependency resolution
       - name: Install deps (isolated)
         run: |
           rm -rf .metrics-tool
           mkdir -p .metrics-tool
-          npm install --prefix .metrics-tool @octokit/graphql tsx
+          cd .metrics-tool
+          bun init -y
+          bun add @octokit/graphql
 
       - name: Compute PR metrics (per author)
         env:
@@ -46,9 +48,8 @@ jobs:
           START_DATE: ${{ env.START_DATE }}
           END_DATE: ${{ env.END_DATE }}
           KV_KEY: ${{ env.KV_KEY }}
-          NODE_PATH: ${{ github.workspace }}/.metrics-tool/node_modules
         run: |
-          cat > /tmp/intern-metrics.ts << 'EOF'
+          cat > .metrics-tool/intern-metrics.ts << 'EOF'
           import { graphql } from '@octokit/graphql';
           import fs from 'node:fs';
           import path from 'node:path';
@@ -312,7 +313,7 @@ jobs:
             process.exit(1);
           });
           EOF
-          .metrics-tool/node_modules/.bin/tsx /tmp/intern-metrics.ts
+          bun .metrics-tool/intern-metrics.ts
 
       - name: Upload to Cloudflare KV
         env:
