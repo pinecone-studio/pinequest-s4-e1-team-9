@@ -51,6 +51,8 @@ export default function Chatbot() {
           messages: updatedMessages.map((m) => ({
             role: m.role,
             content: m.content,
+          console.log("log");
+          
           })),
         }),
       });
