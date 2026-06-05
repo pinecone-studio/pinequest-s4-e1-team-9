@@ -1,7 +1,7 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
 import { BaseMessage, HumanMessage } from '@langchain/core/messages.js';
 import { Document } from '@langchain/core/documents.js';
-import { ChatGroq } from '@langchain/groq';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ingestPDF, vectorStore } from './ingest.js';
 
 // 1. Define Graph State (Holds conversation memory and context)
@@ -32,8 +32,8 @@ async function retrieveNode(state: typeof ChatState.State) {
 }
 
 // 3. Define Node: Generate Answer using LLM + Context
-const model = new ChatGroq({
-  model: 'llama-3.3-70b-versatile',
+const model = new ChatGoogleGenerativeAI({
+  model: 'gemini-2.5-flash',
   temperature: 0,
 });
 
