@@ -1,6 +1,6 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { BaseMessage, HumanMessage } from '@langchain/core/messages.js';
-import { Document } from '@langchain/core/documents.js';
+import { BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { Document } from '@langchain/core/documents';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ingestPDF, vectorStore } from './ingest.js';
 
