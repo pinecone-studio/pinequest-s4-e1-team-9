@@ -1,7 +1,7 @@
-import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
+import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf.js';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { OpenAIEmbeddings } from '@langchain/openai';
-import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
+import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase.js';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 
