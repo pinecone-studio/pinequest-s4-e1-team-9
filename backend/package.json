@@ -27,6 +27,7 @@
     "@langchain/langgraph-cli": "0.0.71",
     "@langchain/langgraph-sdk": "~0.0.70",
     "@langchain/openai": "^0.3.17",
+    "@langchain/textsplitters": "^1.0.1",
     "@mendable/firecrawl-js": "^1.15.7",
     "@supabase/supabase-js": "^2.48.1",
     "chromadb": "^1.10.4",
