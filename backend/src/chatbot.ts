@@ -1,8 +1,8 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { BaseMessage, HumanMessage } from '@langchain/core/messages.js';
+import { Document } from '@langchain/core/documents.js';
 import { ChatGroq } from '@langchain/groq';
 import { ingestPDF, vectorStore } from './ingest.js';
-import { Document } from '@langchain/core/documents';
 
 // 1. Define Graph State (Holds conversation memory and context)
 const ChatState = Annotation.Root({
@@ -23,8 +23,7 @@ async function retrieveNode(state: typeof ChatState.State) {
 
   // Query the vector store we generated in Phase 1
   const retriever = vectorStore.asRetriever({ k: 3 });
-  const relevantDocs: Document[] =
-    await retriever.getRelevantDocuments(lastUserMessage);
+  const relevantDocs: Document[] = await retriever.invoke(lastUserMessage);
 
   // Combine matching text snippets into a single context string
   const contextText = relevantDocs.map((doc) => doc.pageContent).join('\n\n');
@@ -77,6 +76,7 @@ async function main() {
   } catch (error) {
     console.warn(
       'Could not ingest sample.pdf. Proceeding with existing data if any.',
+      error,
     );
   }
 
