@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "langgraphjs dev",
+    "chatbot": "bun src/chatbot.ts",
     "build": "tsc",
     "clean": "rm -rf dist",
     "test": "jest",
