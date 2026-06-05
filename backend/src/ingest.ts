@@ -1,6 +1,6 @@
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf.js';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { OpenAIEmbeddings } from '@langchain/openai';
+import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase.js';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
@@ -24,7 +24,7 @@ export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
 // Define vectorStore globally so it can be exported and used in chatbot.ts
 export const vectorStore = new SupabaseVectorStore(
-  new OpenAIEmbeddings({ modelName: 'text-embedding-3-small' }),
+  new GoogleGenerativeAIEmbeddings({ model: 'text-embedding-004' }),
   {
     client: supabaseClient,
     tableName: 'documents',
@@ -52,10 +52,10 @@ export async function ingestPDF(filePath: string) {
     `📤 Sending ${splitDocs.length} chunks to Supabase Vector Store...`,
   );
 
-  // This automatically calls OpenAI to vectorize text, then updates the Supabase table
+  // This automatically calls Gemini to vectorize text, then updates the Supabase table
   await SupabaseVectorStore.fromDocuments(
     splitDocs,
-    new OpenAIEmbeddings({ modelName: 'text-embedding-3-small' }),
+    new GoogleGenerativeAIEmbeddings({ model: 'text-embedding-004' }),
     {
       client: supabaseClient,
       tableName: 'documents',
