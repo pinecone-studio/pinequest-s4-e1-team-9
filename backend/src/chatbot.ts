@@ -1,27 +1,42 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { BaseMessage, HumanMessage } from '@langchain/core/messages.js';
-import { Document } from '@langchain/core/documents.js';
-import { ChatGroq } from '@langchain/groq';
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages'; // 🛠️ FIX: Removed the trailing '.js' to align with NodeNext subpath exports map
+import { Document } from '@langchain/core/documents';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ingestPDF, vectorStore } from './ingest.js';
 
-// 1. Define Graph State (Holds conversation memory and context)
+// 1. Explicitly define the TypeScript Interface for your state
+interface IChatState {
+  messages: BaseMessage[];
+  pdfContext: string;
+}
+
+// Define Graph State using the interface
 const ChatState = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
     reducer: (x, y) => x.concat(y),
     default: () => [],
   }),
   pdfContext: Annotation<string>({
-    reducer: (x, y) => y, // Overwrite with latest retrieved context
+    reducer: (x, y) => y,
     default: () => '',
   }),
 });
 
 // 2. Define Node: Retrieve matching snippets from the PDF
-async function retrieveNode(state: typeof ChatState.State) {
+async function retrieveNode(state: IChatState) {
+  // Safe array access
   const lastUserMessage = state.messages[state.messages.length - 1]
-    .content as string;
+    ?.content as string;
 
-  // Query the vector store we generated in Phase 1
+  if (!lastUserMessage) {
+    return { pdfContext: '' };
+  }
+
+  // Query the vector store
   const retriever = vectorStore.asRetriever({ k: 3 });
   const relevantDocs: Document[] = await retriever.invoke(lastUserMessage);
 
@@ -32,12 +47,12 @@ async function retrieveNode(state: typeof ChatState.State) {
 }
 
 // 3. Define Node: Generate Answer using LLM + Context
-const model = new ChatGroq({
-  model: 'llama-3.3-70b-versatile',
+const model = new ChatGoogleGenerativeAI({
+  model: 'gemini-2.5-flash',
   temperature: 0,
 });
 
-async function answerNode(state: typeof ChatState.State) {
+async function answerNode(state: IChatState) {
   const systemPrompt = `You are an AI assistant analyzing a PDF document. 
 Answer the user's question using ONLY the provided PDF context below. If the answer cannot be found in the context, say "I cannot find that information in the uploaded document."
 
@@ -46,21 +61,23 @@ PDF CONTEXT:
 ${state.pdfContext}
 ---`;
 
-  // Inject system instructions seamlessly ahead of the chat history
+  // 🛠️ FIX: Format all messages into clean, explicit plain objects
   const completeMessages = [
     { role: 'system', content: systemPrompt },
-    ...state.messages,
+    ...state.messages.map((msg) => ({
+      role: msg._getType() === 'human' ? 'user' : 'assistant',
+      content: msg.content,
+    })),
   ];
 
+  // TypeScript will now cleanly accept this plain object array
   const response = await model.invoke(completeMessages);
   return { messages: [response] };
 }
-
 // 4. Assemble the Graph Structure
 const workflow = new StateGraph(ChatState)
   .addNode('retrieve', retrieveNode)
   .addNode('answer', answerNode)
-  // Define sequence: Start -> Retrieve Context -> Generate Answer -> End
   .addEdge(START, 'retrieve')
   .addEdge('retrieve', 'answer')
   .addEdge('answer', END);
@@ -69,8 +86,6 @@ const chatbotApp = workflow.compile();
 
 // --- 5. Execution Runner Loop ---
 async function main() {
-  // Pass your local PDF filename here
-  // Note: Ensure sample.pdf exists or handle error
   try {
     await ingestPDF('./sample.pdf');
   } catch (error) {
@@ -80,7 +95,6 @@ async function main() {
     );
   }
 
-  // Simulating a chat conversation thread
   const thread = {
     messages: [
       new HumanMessage('What are the core conclusions of this document?'),

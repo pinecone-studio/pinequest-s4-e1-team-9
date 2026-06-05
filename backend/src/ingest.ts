@@ -1,7 +1,8 @@
-import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf.js';
+// 🛠️ REMOVED THE TRAILING `.js` FROM ALL LAYERED SUBPATHS:
+import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
+import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { OpenAIEmbeddings } from '@langchain/openai';
-import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase.js';
+import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 
@@ -22,9 +23,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
-// Define vectorStore globally so it can be exported and used in chatbot.ts
+// 🛠️ FIX 1: Changed 'model' to 'modelName'
 export const vectorStore = new SupabaseVectorStore(
-  new OpenAIEmbeddings({ modelName: 'text-embedding-3-small' }),
+  new GoogleGenerativeAIEmbeddings({ modelName: 'text-embedding-004' }),
   {
     client: supabaseClient,
     tableName: 'documents',
@@ -52,14 +53,14 @@ export async function ingestPDF(filePath: string) {
     `📤 Sending ${splitDocs.length} chunks to Supabase Vector Store...`,
   );
 
-  // This automatically calls OpenAI to vectorize text, then updates the Supabase table
+  // 🛠️ FIX 2: Changed 'model' to 'modelName'
   await SupabaseVectorStore.fromDocuments(
     splitDocs,
-    new OpenAIEmbeddings({ modelName: 'text-embedding-3-small' }),
+    new GoogleGenerativeAIEmbeddings({ modelName: 'text-embedding-004' }),
     {
       client: supabaseClient,
       tableName: 'documents',
-      queryName: 'match_documents', // Targets the SQL function we created earlier
+      queryName: 'match_documents',
     },
   );
 
