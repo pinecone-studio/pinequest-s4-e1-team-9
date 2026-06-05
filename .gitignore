@@ -1,4 +1,4 @@
-# npm
+# dependencies
 node_modules/
 
 # misc
@@ -6,16 +6,14 @@ node_modules/
 *.pem
 
 # debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-ui-debug.log*
+bun-debug.log*
 
 # local env files
 .env*.local
 
 # typescript
 *.tsbuildinfo
+dist/
 
 # vercel
 .vercel
@@ -32,3 +30,5 @@ out/
 
 # env
 .env
+
+/bun.lock
