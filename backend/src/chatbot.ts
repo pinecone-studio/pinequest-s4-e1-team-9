@@ -1,97 +1,160 @@
-import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { Document } from '@langchain/core/documents';
+import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { ingestPDF, vectorStore } from './ingest.js';
+import * as dotenv from 'dotenv';
+import { createServer } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
-// 1. Define Graph State (Holds conversation memory and context)
-const ChatState = Annotation.Root({
-  messages: Annotation<BaseMessage[]>({
-    reducer: (x, y) => x.concat(y),
-    default: () => [],
-  }),
-  pdfContext: Annotation<string>({
-    reducer: (x, y) => y, // Overwrite with latest retrieved context
-    default: () => '',
-  }),
-});
+dotenv.config();
 
-// 2. Define Node: Retrieve matching snippets from the PDF
-async function retrieveNode(state: typeof ChatState.State) {
-  const lastUserMessage = state.messages[state.messages.length - 1]
-    .content as string;
+export type ChatRole = 'user' | 'assistant';
 
-  // Query the vector store we generated in Phase 1
-  const retriever = vectorStore.asRetriever({ k: 3 });
-  const relevantDocs: Document[] = await retriever.invoke(lastUserMessage);
+export type ChatMessage = {
+  role: ChatRole;
+  content: string;
+};
 
-  // Combine matching text snippets into a single context string
-  const contextText = relevantDocs.map((doc) => doc.pageContent).join('\n\n');
-
-  return { pdfContext: contextText };
-}
-
-// 3. Define Node: Generate Answer using LLM + Context
 const model = new ChatGoogleGenerativeAI({
-  model: 'gemini-2.5-flash',
+  model: process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash',
   temperature: 0,
 });
 
-async function answerNode(state: typeof ChatState.State) {
-  const systemPrompt = `You are an AI assistant analyzing a PDF document. 
-Answer the user's question using ONLY the provided PDF context below. If the answer cannot be found in the context, say "I cannot find that information in the uploaded document."
+const systemPrompt = new SystemMessage(
+  'You are a helpful AI assistant. Answer clearly and concisely.',
+);
 
----
-PDF CONTEXT:
-${state.pdfContext}
----`;
-
-  // Inject system instructions seamlessly ahead of the chat history
-  const completeMessages = [
-    { role: 'system', content: systemPrompt },
-    ...state.messages,
-  ];
-
-  const response = await model.invoke(completeMessages);
-  return { messages: [response] };
+function toLangChainMessages(messages: ChatMessage[]): BaseMessage[] {
+  return messages.map((message) =>
+    message.role === 'assistant'
+      ? new AIMessage(message.content)
+      : new HumanMessage(message.content),
+  );
 }
 
-// 4. Assemble the Graph Structure
-const workflow = new StateGraph(ChatState)
-  .addNode('retrieve', retrieveNode)
-  .addNode('answer', answerNode)
-  // Define sequence: Start -> Retrieve Context -> Generate Answer -> End
-  .addEdge(START, 'retrieve')
-  .addEdge('retrieve', 'answer')
-  .addEdge('answer', END);
-
-const chatbotApp = workflow.compile();
-
-// --- 5. Execution Runner Loop ---
-async function main() {
-  // Pass your local PDF filename here
-  // Note: Ensure sample.pdf exists or handle error
-  try {
-    await ingestPDF('./sample.pdf');
-  } catch (error) {
-    console.warn(
-      'Could not ingest sample.pdf. Proceeding with existing data if any.',
-      error,
-    );
+function contentToText(content: unknown) {
+  if (typeof content === 'string') {
+    return content;
   }
 
-  // Simulating a chat conversation thread
-  const thread = {
-    messages: [
-      new HumanMessage('What are the core conclusions of this document?'),
-    ],
-  };
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === 'string') {
+          return part;
+        }
 
-  console.log('\n🤖 Thinking...');
-  const output = await chatbotApp.invoke(thread);
+        if (part && typeof part === 'object' && 'text' in part) {
+          return String((part as { text?: unknown }).text ?? '');
+        }
 
-  const finalAnswer = output.messages[output.messages.length - 1].content;
-  console.log(`\n💬 Assistant:\n${finalAnswer}`);
+        return '';
+      })
+      .join('');
+  }
+
+  return String(content ?? '');
 }
 
-main().catch(console.error);
+function isChatMessage(value: unknown): value is ChatMessage {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const message = value as Partial<ChatMessage>;
+
+  return (
+    (message.role === 'user' || message.role === 'assistant') &&
+    typeof message.content === 'string' &&
+    message.content.trim().length > 0
+  );
+}
+
+export async function generateChatResponse(messages: ChatMessage[]) {
+  if (!messages.length) {
+    throw new Error('At least one message is required.');
+  }
+
+  const response = await model.invoke([
+    systemPrompt,
+    ...toLangChainMessages(messages),
+  ]);
+
+  return contentToText(response.content);
+}
+
+async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
+}
+
+function sendJson(
+  res: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  headers: Record<string, string>,
+) {
+  res.writeHead(statusCode, {
+    ...headers,
+    'Content-Type': 'application/json',
+  });
+  res.end(JSON.stringify(body));
+}
+
+export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': process.env.FRONTEND_ORIGIN || '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  const server = createServer(async (req, res) => {
+    const requestUrl = new URL(req.url || '/', `http://${req.headers.host}`);
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, corsHeaders);
+      res.end();
+      return;
+    }
+
+    if (req.method === 'GET' && requestUrl.pathname === '/health') {
+      sendJson(res, 200, { ok: true }, corsHeaders);
+      return;
+    }
+
+    if (req.method !== 'POST' || requestUrl.pathname !== '/chat') {
+      sendJson(res, 404, { error: 'Not found.' }, corsHeaders);
+      return;
+    }
+
+    try {
+      const body = await readJsonBody<{ messages?: unknown }>(req);
+      const messages = Array.isArray(body.messages) ? body.messages : [];
+
+      if (!messages.length || !messages.every(isChatMessage)) {
+        sendJson(res, 400, { error: 'Invalid messages payload.' }, corsHeaders);
+        return;
+      }
+
+      const reply = await generateChatResponse(messages);
+      sendJson(res, 200, { reply }, corsHeaders);
+    } catch (error) {
+      console.error(error);
+      sendJson(res, 500, { error: 'Failed to generate response.' }, corsHeaders);
+    }
+  });
+
+  server.listen(port, () => {
+    console.log(`Chatbot backend listening on http://localhost:${port}`);
+  });
+
+  return server;
+}
+
+if (import.meta.main) {
+  startChatbotServer();
+}

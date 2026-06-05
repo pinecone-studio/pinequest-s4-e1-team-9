@@ -9,6 +9,14 @@ interface Message {
   content: string;
 }
 
+interface ChatResponse {
+  reply?: string;
+  error?: string;
+}
+
+const chatApiUrl =
+  process.env.NEXT_PUBLIC_CHAT_API_URL || 'http://localhost:4000/chat';
+
 export default function Chatbot() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -36,12 +44,10 @@ export default function Chatbot() {
     setLoading(true);
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch(chatApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
           messages: updatedMessages.map((m) => ({
             role: m.role,
             content: m.content,
@@ -49,22 +55,26 @@ export default function Chatbot() {
         }),
       });
 
-      const data = await response.json();
-      const reply =
-        data.content?.find((b: { type: string }) => b.type === 'text')?.text ??
-        'No response.';
+      const data = (await response.json()) as ChatResponse;
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch chatbot response.');
+      }
+
+      const reply = data.reply?.trim() || 'No response.';
 
       setMessages((prev) => [
         ...prev,
         { id: Date.now().toString(), role: 'assistant', content: reply },
       ]);
-    } catch {
+    } catch (error) {
+      console.error(error);
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
           role: 'assistant',
-          content: 'Something went wrong. Please try again.',
+          content: 'The backend chatbot did not respond. Please try again.',
         },
       ]);
     } finally {
@@ -90,9 +100,9 @@ export default function Chatbot() {
           </div>
           <div>
             <p className="text-sm font-semibold text-zinc-100 tracking-wide">
-              Claude
+              Gemini
             </p>
-            <p className="text-[11px] text-zinc-500">claude-sonnet-4</p>
+            <p className="text-[11px] text-zinc-500">backend chatbot</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
