@@ -3,16 +3,20 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
 import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
 
 // 1. Initialize Supabase Client
-// Ensure these environment variables are set in your terminal or .env file
 const supabaseUrl =
-  process.env.SUPABASE_URL || 'https://your-project-id.supabase.co';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    'Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables.',
+    'Missing Supabase configuration. Ensure SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY) are set.',
   );
 }
 
