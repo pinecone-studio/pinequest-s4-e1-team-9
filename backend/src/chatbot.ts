@@ -1,6 +1,6 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { ChatOpenAI } from '@langchain/openai';
+import { ChatGroq } from '@langchain/groq';
 import { ingestPDF, vectorStore } from './ingest.js';
 import { Document } from '@langchain/core/documents';
 
@@ -23,7 +23,8 @@ async function retrieveNode(state: typeof ChatState.State) {
 
   // Query the vector store we generated in Phase 1
   const retriever = vectorStore.asRetriever({ k: 3 });
-  const relevantDocs: Document[] = await retriever.getRelevantDocuments(lastUserMessage);
+  const relevantDocs: Document[] =
+    await retriever.getRelevantDocuments(lastUserMessage);
 
   // Combine matching text snippets into a single context string
   const contextText = relevantDocs.map((doc) => doc.pageContent).join('\n\n');
@@ -32,7 +33,10 @@ async function retrieveNode(state: typeof ChatState.State) {
 }
 
 // 3. Define Node: Generate Answer using LLM + Context
-const model = new ChatOpenAI({ modelName: 'gpt-4o-mini', temperature: 0 });
+const model = new ChatGroq({
+  model: 'llama-3.3-70b-versatile',
+  temperature: 0,
+});
 
 async function answerNode(state: typeof ChatState.State) {
   const systemPrompt = `You are an AI assistant analyzing a PDF document. 
@@ -71,7 +75,9 @@ async function main() {
   try {
     await ingestPDF('./sample.pdf');
   } catch (error) {
-    console.warn('Could not ingest sample.pdf. Proceeding with existing data if any.');
+    console.warn(
+      'Could not ingest sample.pdf. Proceeding with existing data if any.',
+    );
   }
 
   // Simulating a chat conversation thread

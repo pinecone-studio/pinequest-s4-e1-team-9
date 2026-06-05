@@ -28,6 +28,7 @@
     "turbo": "latest"
   },
   "dependencies": {
+    "@langchain/groq": "^1.2.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
     "langsmith": "^0.7.5"
