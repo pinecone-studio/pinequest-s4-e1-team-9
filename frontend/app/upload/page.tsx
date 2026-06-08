@@ -7,8 +7,6 @@ const uploadApiUrl =
   process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'http://localhost:4000/upload';
 
 export default function UploadPage() {
-  console.log('a');
-
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>('');
