@@ -1,4 +1,8 @@
-import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import * as dotenv from 'dotenv';
@@ -144,7 +148,12 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
       sendJson(res, 200, { reply }, corsHeaders);
     } catch (error) {
       console.error(error);
-      sendJson(res, 500, { error: 'Failed to generate response.' }, corsHeaders);
+      sendJson(
+        res,
+        500,
+        { error: 'Failed to generate response.' },
+        corsHeaders,
+      );
     }
   });
 
