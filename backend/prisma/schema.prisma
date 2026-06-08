@@ -8,33 +8,52 @@ datasource db {
 }
 
 model UserDocument {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String          @map("user_id") @db.Uuid
   filename     String
-  fileSize     BigInt?   @map("file_size")
-  mimeType     String?   @map("mime_type")
-  storagePath  String?   @map("storage_path")
-  status       String    @default("processing")
-  errorMessage String?   @map("error_message")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  chunks       documents[]
+  fileSize     BigInt?         @map("file_size")
+  mimeType     String?         @map("mime_type")
+  storagePath  String?         @map("storage_path")
+  status       String          @default("processing")
+  errorMessage String?         @map("error_message")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  chunks       DocumentChunk[]
 
   @@index([userId])
   @@index([userId, status])
   @@map("user_documents")
 }
 
-model documents {
-  id         BigInt        @id @default(autoincrement())
-  userId     String?       @map("user_id") @db.Uuid
-  documentId String?       @map("document_id") @db.Uuid
+model DocumentChunk {
+  id         BigInt                 @id @default(autoincrement())
+  userId     String?                @map("user_id") @db.Uuid
+  documentId String?                @map("document_id") @db.Uuid
   content    String?
   metadata   Json?
   embedding  Unsupported("vector")?
-  document   UserDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex Int?                   @map("chunk_index")
+  pageNumber Int?                   @map("page_number")
+  createdAt  DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  document   UserDocument?          @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([documentId])
   @@index([userId, documentId])
+  @@map("document_chunks")
+}
+
+model ChatMessage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  conversationId String?  @map("conversation_id") @db.Uuid
+  role           String
+  content        String
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([userId, conversationId, createdAt])
+  @@map("chat_messages")
 }
