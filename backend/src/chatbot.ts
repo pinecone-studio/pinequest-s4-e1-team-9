@@ -8,7 +8,7 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import * as dotenv from 'dotenv';
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getSupabaseRetriever, ingestPDF } from './ingest';
+import { getSupabaseRetriever, ingestPDF } from './ingest.ts';
 import formidable from 'formidable';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -141,7 +141,8 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
   };
 
   const server = createServer(async (req, res) => {
-    const requestUrl = new URL(req.url || '/', `http://${req.headers.host}`);
+    const host = req.headers.host || 'localhost';
+    const requestUrl = new URL(req.url || '/', `http://${host}`);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204, corsHeaders);
@@ -155,13 +156,14 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
     }
 
     if (req.method === 'POST' && requestUrl.pathname === '/upload') {
+      const uploadDir = path.join(process.cwd(), 'uploads');
       const form = formidable({
-        uploadDir: path.join(process.cwd(), 'uploads'),
+        uploadDir,
         keepExtensions: true,
       });
 
-      if (!fs.existsSync(form.uploadDir)) {
-        fs.mkdirSync(form.uploadDir, { recursive: true });
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
       }
 
       form.parse(req, async (err, _fields, files) => {
@@ -171,8 +173,10 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
           return;
         }
 
-        const file = Array.isArray(files.file) ? files.file[0] : files.file;
-        if (!file || !file.filepath) {
+        const fileArray = files.file;
+        const file = Array.isArray(fileArray) ? fileArray[0] : fileArray;
+
+        if (!file || !('filepath' in file)) {
           sendJson(res, 400, { error: 'No file uploaded.' }, corsHeaders);
           return;
         }
@@ -185,7 +189,12 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
           sendJson(
             res,
             500,
-            { error: error instanceof Error ? error.message : 'Failed to process PDF.' },
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Failed to process PDF.',
+            },
             corsHeaders,
           );
         } finally {
