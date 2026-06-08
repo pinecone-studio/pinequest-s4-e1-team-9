@@ -3,15 +3,17 @@ import {
   HumanMessage,
   SystemMessage,
 } from '@langchain/core/messages';
+import type { DocumentInterface } from '@langchain/core/documents';
 import type { BaseMessage } from '@langchain/core/messages';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import * as dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getSupabaseRetriever, ingestPDF } from './ingest.ts';
-import formidable from 'formidable';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { Readable } from 'node:stream';
 
 dotenv.config();
 
@@ -73,6 +75,63 @@ function isChatMessage(value: unknown): value is ChatMessage {
   );
 }
 
+function createFetchHeaders(req: IncomingMessage) {
+  const headers = new Headers();
+
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        headers.append(key, item);
+      }
+    } else if (value !== undefined) {
+      headers.set(key, value);
+    }
+  }
+
+  return headers;
+}
+
+function isUploadedFile(value: FormDataEntryValue | null): value is File {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'arrayBuffer' in value &&
+    typeof value.arrayBuffer === 'function'
+  );
+}
+
+async function saveUploadedFile(req: IncomingMessage, uploadDir: string) {
+  await fs.promises.mkdir(uploadDir, { recursive: true });
+
+  const request = new Request(
+    `http://${req.headers.host || 'localhost'}/upload`,
+    {
+      method: req.method,
+      headers: createFetchHeaders(req),
+      body: Readable.toWeb(req) as ReadableStream<Uint8Array>,
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' },
+  );
+
+  const formData = await request.formData();
+  const file = formData.get('file');
+
+  if (!isUploadedFile(file)) {
+    return null;
+  }
+
+  const extension = path.extname(file.name || '').toLowerCase() || '.pdf';
+  const filepath = path.join(uploadDir, `${randomUUID()}${extension}`);
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  if (!buffer.length) {
+    return null;
+  }
+
+  await fs.promises.writeFile(filepath, buffer);
+  return filepath;
+}
+
 export async function generateChatResponse(messages: ChatMessage[]) {
   if (!messages.length) {
     throw new Error('At least one message is required.');
@@ -83,7 +142,9 @@ export async function generateChatResponse(messages: ChatMessage[]) {
 
   let context = '';
   try {
-    const retrievedDocs = await retriever.invoke(userQuery);
+    const retrievedDocs = (await retriever.invoke(
+      userQuery,
+    )) as DocumentInterface[];
     context = retrievedDocs
       .map((doc, i) => `[Source ${i + 1}]: ${doc.pageContent}`)
       .join('\n\n');
@@ -157,56 +218,34 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
 
     if (req.method === 'POST' && requestUrl.pathname === '/upload') {
       const uploadDir = path.join(process.cwd(), 'uploads');
-      const form = formidable({
-        uploadDir,
-        keepExtensions: true,
-      });
+      let filepath: string | null = null;
 
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
+      try {
+        filepath = await saveUploadedFile(req, uploadDir);
 
-      form.parse(req, async (err, _fields, files) => {
-        if (err) {
-          console.error('Upload error:', err);
-          sendJson(res, 500, { error: 'Failed to upload file.' }, corsHeaders);
-          return;
-        }
-
-        const fileArray = files.file;
-        const file = Array.isArray(fileArray) ? fileArray[0] : fileArray;
-
-        if (!file || !('filepath' in file)) {
+        if (!filepath) {
           sendJson(res, 400, { error: 'No file uploaded.' }, corsHeaders);
           return;
         }
 
-        try {
-          await ingestPDF(file.filepath);
-          sendJson(res, 200, { ok: true }, corsHeaders);
-        } catch (error) {
-          console.error('Ingestion error:', error);
-          sendJson(
-            res,
-            500,
-            {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Failed to process PDF.',
-            },
-            corsHeaders,
-          );
-        } finally {
-          try {
-            if (file.filepath && fs.existsSync(file.filepath)) {
-              fs.unlinkSync(file.filepath);
-            }
-          } catch (e) {
-            // ignore
-          }
+        await ingestPDF(filepath);
+        sendJson(res, 200, { ok: true }, corsHeaders);
+      } catch (error) {
+        console.error('Upload or ingestion error:', error);
+        sendJson(
+          res,
+          500,
+          {
+            error:
+              error instanceof Error ? error.message : 'Failed to process PDF.',
+          },
+          corsHeaders,
+        );
+      } finally {
+        if (filepath) {
+          await fs.promises.unlink(filepath).catch(() => undefined);
         }
-      });
+      }
       return;
     }
 

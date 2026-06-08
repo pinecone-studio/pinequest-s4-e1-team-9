@@ -11,8 +11,12 @@ dotenv.config();
 // 1. Initialize Supabase Client
 const supabaseUrl =
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey =
+const supabaseWriteKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_KEY;
+const supabaseKey =
+  supabaseWriteKey ||
   process.env.SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const googleApiKey = process.env.GOOGLE_API_KEY || '';
@@ -27,6 +31,19 @@ if (!googleApiKey) {
   throw new Error('Missing GOOGLE_API_KEY configuration.');
 }
 
+let warnedAboutPublicSupabaseKey = false;
+
+function warnIfUsingPublicSupabaseKey() {
+  if (supabaseWriteKey || warnedAboutPublicSupabaseKey) {
+    return;
+  }
+
+  warnedAboutPublicSupabaseKey = true;
+  console.warn(
+    'SUPABASE_SERVICE_ROLE_KEY is not set. Falling back to SUPABASE_ANON_KEY for PDF ingestion; make sure database grants/RLS allow document_chunks writes.',
+  );
+}
+
 export const supabaseClient = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
 });
@@ -35,7 +52,7 @@ export const supabaseClient = createClient(supabaseUrl, supabaseKey, {
 // Using the official LangChain implementation for better reliability
 export const embeddings = new GoogleGenerativeAIEmbeddings({
   apiKey: googleApiKey,
-  modelName: process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004',
+  modelName: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001',
 });
 
 // Define vectorStore globally so it can be exported and used in chatbot.ts
@@ -50,6 +67,8 @@ export const vectorStore = new SupabaseVectorStore(embeddings, {
  * Returns a configured retriever for the LangGraph chatbot to query.
  */
 export async function ingestPDF(filePath: string) {
+  warnIfUsingPublicSupabaseKey();
+
   console.log('⏳ Loading local PDF document...');
   const loader = new PDFLoader(filePath);
   const docs = await loader.load();
