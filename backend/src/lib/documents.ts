@@ -1,6 +1,6 @@
 import type {
   Prisma,
-  documents as Document,
+  DocumentChunk as Document,
 } from '../generated/prisma/client.js';
 import prisma from './prisma.js';
 
@@ -10,16 +10,16 @@ type CreateDocumentInput = {
   userId: string;
   documentId: string;
   content?: string | null;
-  metadata?: Prisma.documentsUncheckedCreateInput['metadata'];
+  metadata?: Prisma.DocumentChunkUncheckedCreateInput['metadata'];
 };
 
 type UpdateDocumentInput = {
   content?: string | null;
-  metadata?: Prisma.documentsUncheckedUpdateInput['metadata'];
+  metadata?: Prisma.DocumentChunkUncheckedUpdateInput['metadata'];
 };
 
 export const createDocument = async (input: CreateDocumentInput) => {
-  const document = await prisma.documents.create({
+  const document = await prisma.documentChunk.create({
     data: {
       userId: input.userId,
       documentId: input.documentId,
@@ -32,7 +32,7 @@ export const createDocument = async (input: CreateDocumentInput) => {
 };
 
 export const getDocuments = async (userId: string, documentId?: string) => {
-  const documents = await prisma.documents.findMany({
+  const documents = await prisma.documentChunk.findMany({
     where: {
       userId,
       documentId,
@@ -44,7 +44,7 @@ export const getDocuments = async (userId: string, documentId?: string) => {
 };
 
 export const getDocumentById = async (userId: string, id: DocumentId) => {
-  const document = await prisma.documents.findFirst({
+  const document = await prisma.documentChunk.findFirst({
     where: {
       id: BigInt(id),
       userId,
@@ -65,7 +65,7 @@ export const updateDocument = async (
     return null;
   }
 
-  const document = await prisma.documents.update({
+  const document = await prisma.documentChunk.update({
     where: { id: BigInt(id) },
     data: {
       content: data.content?.trim() || null,
@@ -83,7 +83,7 @@ export const deleteDocument = async (userId: string, id: DocumentId) => {
     return null;
   }
 
-  const document = await prisma.documents.delete({
+  const document = await prisma.documentChunk.delete({
     where: { id: BigInt(id) },
   });
 
@@ -91,7 +91,7 @@ export const deleteDocument = async (userId: string, id: DocumentId) => {
 };
 
 export const deleteDocuments = async (userId: string, documentId?: string) => {
-  const documents = await prisma.documents.deleteMany({
+  const documents = await prisma.documentChunk.deleteMany({
     where: {
       userId,
       documentId,

@@ -8,6 +8,10 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import * as dotenv from 'dotenv';
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { getSupabaseRetriever, ingestPDF } from './ingest';
+import formidable from 'formidable';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 dotenv.config();
 
@@ -22,10 +26,6 @@ const model = new ChatGoogleGenerativeAI({
   model: process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash',
   temperature: 0,
 });
-
-const systemPrompt = new SystemMessage(
-  'You are a helpful AI assistant. Answer clearly and concisely.',
-);
 
 function toLangChainMessages(messages: ChatMessage[]): BaseMessage[] {
   return messages.map((message) =>
@@ -78,8 +78,32 @@ export async function generateChatResponse(messages: ChatMessage[]) {
     throw new Error('At least one message is required.');
   }
 
+  const userQuery = messages[messages.length - 1].content;
+  const retriever = getSupabaseRetriever();
+
+  let context = '';
+  try {
+    const retrievedDocs = await retriever.invoke(userQuery);
+    context = retrievedDocs
+      .map((doc, i) => `[Source ${i + 1}]: ${doc.pageContent}`)
+      .join('\n\n');
+  } catch (error) {
+    console.error('Error retrieving documents:', error);
+  }
+
+  const augmentedSystemPrompt = new SystemMessage(
+    `You are a helpful AI assistant for company documents. 
+    Use the following pieces of retrieved context to answer the user's question.
+    If you don't know the answer based on the context, just say that you don't know.
+    
+    Context:
+    ${context || 'No relevant document context found.'}
+    
+    Please provide citations in your response using the [Source X] format when using the context.`,
+  );
+
   const response = await model.invoke([
-    systemPrompt,
+    augmentedSystemPrompt,
     ...toLangChainMessages(messages),
   ]);
 
@@ -127,6 +151,53 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
 
     if (req.method === 'GET' && requestUrl.pathname === '/health') {
       sendJson(res, 200, { ok: true }, corsHeaders);
+      return;
+    }
+
+    if (req.method === 'POST' && requestUrl.pathname === '/upload') {
+      const form = formidable({
+        uploadDir: path.join(process.cwd(), 'uploads'),
+        keepExtensions: true,
+      });
+
+      if (!fs.existsSync(form.uploadDir)) {
+        fs.mkdirSync(form.uploadDir, { recursive: true });
+      }
+
+      form.parse(req, async (err, _fields, files) => {
+        if (err) {
+          console.error('Upload error:', err);
+          sendJson(res, 500, { error: 'Failed to upload file.' }, corsHeaders);
+          return;
+        }
+
+        const file = Array.isArray(files.file) ? files.file[0] : files.file;
+        if (!file || !file.filepath) {
+          sendJson(res, 400, { error: 'No file uploaded.' }, corsHeaders);
+          return;
+        }
+
+        try {
+          await ingestPDF(file.filepath);
+          sendJson(res, 200, { ok: true }, corsHeaders);
+        } catch (error) {
+          console.error('Ingestion error:', error);
+          sendJson(
+            res,
+            500,
+            { error: error instanceof Error ? error.message : 'Failed to process PDF.' },
+            corsHeaders,
+          );
+        } finally {
+          try {
+            if (file.filepath && fs.existsSync(file.filepath)) {
+              fs.unlinkSync(file.filepath);
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      });
       return;
     }
 
