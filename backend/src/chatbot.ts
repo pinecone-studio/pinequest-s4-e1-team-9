@@ -5,7 +5,7 @@ import {
 } from '@langchain/core/messages';
 import type { DocumentInterface } from '@langchain/core/documents';
 import type { BaseMessage } from '@langchain/core/messages';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatGroq } from '@langchain/groq';
 import * as dotenv from 'dotenv';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -24,8 +24,8 @@ export type ChatMessage = {
   content: string;
 };
 
-const model = new ChatGoogleGenerativeAI({
-  model: process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash',
+const model = new ChatGroq({
+  model: process.env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile',
   temperature: 0,
 });
 
@@ -163,12 +163,20 @@ export async function generateChatResponse(messages: ChatMessage[]) {
     Please provide citations in your response using the [Source X] format when using the context.`,
   );
 
-  const response = await model.invoke([
-    augmentedSystemPrompt,
-    ...toLangChainMessages(messages),
-  ]);
+  try {
+    const response = await model.invoke([
+      augmentedSystemPrompt,
+      ...toLangChainMessages(messages),
+    ]);
 
-  return contentToText(response.content);
+    return contentToText(response.content);
+  } catch (error) {
+    console.error('Error generating chat response:', error);
+    if (error instanceof Error && error.message.includes('429')) {
+      return 'I am currently experiencing high demand and have exceeded my usage quota. Please try again in a moment.';
+    }
+    throw error;
+  }
 }
 
 async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
