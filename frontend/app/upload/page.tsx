@@ -7,6 +7,8 @@ const uploadApiUrl =
   process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'http://localhost:4000/upload';
 
 export default function UploadPage() {
+  console.log('a');
+
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>('');
@@ -72,7 +74,12 @@ export default function UploadPage() {
                 {file ? file.name : 'Click to upload PDF'}
               </p>
             </div>
-            <input type="file" className="hidden" onChange={handleFileChange} accept=".pdf" />
+            <input
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
+              accept=".pdf"
+            />
           </label>
 
           <button
@@ -80,10 +87,14 @@ export default function UploadPage() {
             disabled={!file || loading}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 hover:bg-amber-400/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
+            {loading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <FileUp size={16} />
+            )}
             Upload and Process
           </button>
-          
+
           {status && (
             <p className="text-center text-sm text-zinc-400 mt-2">{status}</p>
           )}
