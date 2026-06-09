@@ -71,8 +71,8 @@ export default function ChatInput({
     <div
       className="
         bg-input rounded-lg px-3.5 py-2.5
-        border border-transparent focus-within:border-[#00e5cc]
-        transition-colors duration-200 cursor-text font-['Inter']
+        border border-transparent focus-within:border-[#00e5cc] focus-within:shadow-[0_0_8px_rgba(0,229,204,0.12)]
+        transition-all duration-200 ease-in-out cursor-text font-['Inter']
       "
       onClick={() => inputRef.current?.focus()}
     >
@@ -121,6 +121,7 @@ export default function ChatInput({
           rows={1}
           className="
           flex-1 bg-transparent border-none outline-none resize-none
+          transition-all duration-200 ease-in-out
           text-foreground text-[15px] leading-6
           placeholder:text-muted-foreground font-['JetBrains_Mono']
           py-1.5 disabled:opacity-60

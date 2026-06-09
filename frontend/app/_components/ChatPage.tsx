@@ -10,6 +10,7 @@ import {
 } from '@/app/_components/chat/ChatComposer';
 import { Message } from '@/app/_components/chat/MessageBubble';
 import Sidebar from '@/app/_components/chat/Sidebar';
+import { useLocalChatHistory } from '@/app/_components/chat/UseLocalChatHistory';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ChatResponse {
@@ -28,6 +29,17 @@ export default function GeminiPage() {
   const [loading, setLoading] = useState(false);
   const composerRef = useRef<ChatComposerHandle>(null);
   const messagesRef = useRef<Message[]>([]);
+  const activeConversationId = useRef<string | null>(null);
+
+  const {
+    conversations,
+    activeId,
+    setActiveId,
+    createConversation,
+    saveMessages,
+    loadConversation,
+    deleteConversation,
+  } = useLocalChatHistory();
 
   const hasMessages = messages.length > 0;
 
@@ -45,19 +57,38 @@ export default function GeminiPage() {
 
   const handleNewChat = useCallback(() => {
     setMessages([]);
+    activeConversationId.current = null;
+    setActiveId(null);
     composerRef.current?.reset();
     composerRef.current?.focus();
-  }, []);
+  }, [setActiveId]);
+
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      const restored = loadConversation(id);
+      setMessages(restored);
+      activeConversationId.current = id;
+      composerRef.current?.reset();
+      composerRef.current?.focus();
+    },
+    [loadConversation],
+  );
+
+  const handleDeleteConversation = useCallback(
+    (id: string) => {
+      deleteConversation(id);
+      if (activeConversationId.current === id) {
+        setMessages([]);
+        activeConversationId.current = null;
+      }
+    },
+    [deleteConversation],
+  );
 
   const uploadFile = async (file: File): Promise<void> => {
     const formData = new FormData();
     formData.append('file', file);
-
-    const res = await fetch(UPLOAD_API_URL, {
-      method: 'POST',
-      body: formData,
-    });
-
+    const res = await fetch(UPLOAD_API_URL, { method: 'POST', body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? 'Upload failed');
   };
@@ -65,10 +96,15 @@ export default function GeminiPage() {
   const sendMessage = useCallback(
     async ({ text, file: fileToUpload }: SendPayload) => {
       if (loading) return;
-
       setLoading(true);
 
       try {
+        if (!activeConversationId.current) {
+          activeConversationId.current = createConversation();
+        }
+
+        const conversationId = activeConversationId.current!;
+
         const userMsg: Message = {
           id: `user-${Date.now()}`,
           role: 'user',
@@ -78,6 +114,7 @@ export default function GeminiPage() {
 
         const updatedMessages = [...messagesRef.current, userMsg];
         setMessages(updatedMessages);
+        saveMessages(conversationId, updatedMessages);
 
         if (fileToUpload) {
           await uploadFile(fileToUpload);
@@ -98,38 +135,47 @@ export default function GeminiPage() {
         const data = (await res.json()) as ChatResponse;
         if (!res.ok) throw new Error(data.error ?? 'Request failed');
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: data.reply?.trim() || 'No response.',
-          },
-        ]);
+        const assistantMsg: Message = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: data.reply?.trim() || 'No response.',
+        };
+
+        const finalMessages = [...updatedMessages, assistantMsg];
+        setMessages(finalMessages);
+        saveMessages(conversationId, finalMessages);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error.';
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: text
-              ? `Sorry, I couldn't reach the backend: ${msg}`
-              : `Failed to upload file: ${msg}`,
-          },
-        ]);
+        const errorMsg: Message = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: text
+            ? `Sorry, I couldn't reach the backend: ${msg}`
+            : `Failed to upload file: ${msg}`,
+        };
+        const withError = [...messagesRef.current, errorMsg];
+        setMessages(withError);
+        if (activeConversationId.current) {
+          saveMessages(activeConversationId.current, withError);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [loading]
+    [loading, createConversation, saveMessages],
   );
 
   return (
     <div className="flex h-screen overflow-hidden relative bg-background text-foreground">
       <ChatBackground />
 
-      <Sidebar onNewChat={handleNewChat} />
+      <Sidebar
+        onNewChat={handleNewChat}
+        conversations={conversations}
+        activeId={activeId}
+        onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
+      />
 
       <main className="flex-1 flex flex-col overflow-hidden relative z-10">
         <HeaderActions hasMessages={hasMessages} />

@@ -2,6 +2,22 @@ import MessageActions from '@/app/_components/actions/MessageActions';
 import FileAttachmentChip from '@/app/_components/chat/FileAttachmentChip';
 import { memo } from 'react';
 
+function renderWithSources(text: string) {
+  if (!text) return null;
+
+  const parts = text.split(/(\[Source \d+\])/g);
+  return parts.map((part, index) => {
+    if (/^\[Source \d+\]$/.test(part)) {
+      return (
+        <span key={index} className="text-[#00e5cc] hover:underline">
+          {part}
+        </span>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -30,7 +46,7 @@ function MessageBubble({ message, onCopy }: MessageBubbleProps) {
                 text-secondary-foreground whitespace-pre-wrap break-words font-['JetBrains_Mono']
               "
             >
-              {message.content}
+              {renderWithSources(message.content)}
             </div>
           )}
         </div>
@@ -41,7 +57,7 @@ function MessageBubble({ message, onCopy }: MessageBubbleProps) {
   return (
     <div className="flex flex-col">
       <p className="m-0 text-[15px] leading-[26px] text-foreground whitespace-pre-wrap break-words font-['JetBrains_Mono']">
-        {message.content}
+        {renderWithSources(message.content)}
       </p>
       <MessageActions onCopy={() => onCopy?.(message.content)} />
     </div>
