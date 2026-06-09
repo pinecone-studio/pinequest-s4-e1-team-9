@@ -10,7 +10,6 @@ import * as dotenv from 'dotenv';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getSupabaseRetriever, ingestPDF } from './ingest.ts';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Readable } from 'node:stream';
@@ -24,10 +23,30 @@ export type ChatMessage = {
   content: string;
 };
 
-const model = new ChatGroq({
-  model: process.env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile',
-  temperature: 0,
-});
+function resolvePort(portValue = process.env.PORT) {
+  if (!portValue) {
+    return 4000;
+  }
+
+  const port = Number(portValue);
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid PORT value: ${portValue}`);
+  }
+
+  return port;
+}
+
+async function loadIngestionModule() {
+  return import('./ingest.ts');
+}
+
+function createChatModel() {
+  return new ChatGroq({
+    model: process.env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile',
+    temperature: 0,
+  });
+}
 
 function toLangChainMessages(messages: ChatMessage[]): BaseMessage[] {
   return messages.map((message) =>
@@ -138,10 +157,11 @@ export async function generateChatResponse(messages: ChatMessage[]) {
   }
 
   const userQuery = messages[messages.length - 1].content;
-  const retriever = getSupabaseRetriever();
 
   let context = '';
   try {
+    const { getSupabaseRetriever } = await loadIngestionModule();
+    const retriever = getSupabaseRetriever();
     const retrievedDocs = (await retriever.invoke(
       userQuery,
     )) as DocumentInterface[];
@@ -164,6 +184,7 @@ export async function generateChatResponse(messages: ChatMessage[]) {
   );
 
   try {
+    const model = createChatModel();
     const response = await model.invoke([
       augmentedSystemPrompt,
       ...toLangChainMessages(messages),
@@ -202,7 +223,10 @@ function sendJson(
   res.end(JSON.stringify(body));
 }
 
-export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
+export function startChatbotServer(
+  port = resolvePort(),
+  host = process.env.HOST || '0.0.0.0',
+) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': process.env.FRONTEND_ORIGIN || '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
@@ -219,8 +243,11 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
       return;
     }
 
-    if (req.method === 'GET' && requestUrl.pathname === '/health') {
-      sendJson(res, 200, { ok: true }, corsHeaders);
+    if (
+      req.method === 'GET' &&
+      (requestUrl.pathname === '/' || requestUrl.pathname === '/health')
+    ) {
+      sendJson(res, 200, { ok: true, service: 'backend' }, corsHeaders);
       return;
     }
 
@@ -236,6 +263,7 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
           return;
         }
 
+        const { ingestPDF } = await loadIngestionModule();
         await ingestPDF(filepath);
         sendJson(res, 200, { ok: true }, corsHeaders);
       } catch (error) {
@@ -284,8 +312,8 @@ export function startChatbotServer(port = Number(process.env.PORT || 4000)) {
     }
   });
 
-  server.listen(port, () => {
-    console.log(`Chatbot backend listening on http://localhost:${port}`);
+  server.listen(port, host, () => {
+    console.log(`Chatbot backend listening on http://${host}:${port}`);
   });
 
   return server;

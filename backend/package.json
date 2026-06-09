@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "langgraphjs dev",
     "chatbot": "bun src/chatbot.ts",
+    "start": "bun src/chatbot.ts",
     "build": "bunx prisma generate && tsc",
     "clean": "rm -rf dist",
     "test": "jest",
