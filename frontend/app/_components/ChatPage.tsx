@@ -18,10 +18,10 @@ interface ChatResponse {
 }
 
 const CHAT_API_URL =
-  process.env.NEXT_PUBLIC_CHAT_API_URL || 'http://localhost:4000/chat';
+  process.env.NEXT_PUBLIC_CHAT_API_URL || 'https://pinequest-s4-e1-team-9.onrender.com/chat';
 
 const UPLOAD_API_URL =
-  process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'http://localhost:4000/upload';
+  process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'https://pinequest-s4-e1-team-9.onrender.com/upload';
 
 export default function GeminiPage() {
   const [messages, setMessages] = useState<Message[]>([]);
