@@ -3,7 +3,10 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Research Docs',
-  description: 'Company document copilot',
+  description: 'Company documents',
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({
