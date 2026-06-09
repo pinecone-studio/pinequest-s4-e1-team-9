@@ -1,7 +1,10 @@
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
-import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
+import {
+  GoogleGenerativeAIEmbeddings,
+  type GoogleGenerativeAIEmbeddingsParams,
+} from '@langchain/google-genai';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 
@@ -20,6 +23,11 @@ const supabaseKey =
   process.env.SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const googleApiKey = process.env.GOOGLE_API_KEY || '';
+const embeddingModelName =
+  process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001';
+const embeddingConcurrency = Number(
+  process.env.GEMINI_EMBEDDING_CONCURRENCY || 4,
+);
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error(
@@ -44,16 +52,83 @@ function warnIfUsingPublicSupabaseKey() {
   );
 }
 
+type GeminiTaskType = NonNullable<
+  GoogleGenerativeAIEmbeddingsParams['taskType']
+>;
+
+const retrievalDocumentTaskType = 'RETRIEVAL_DOCUMENT' as GeminiTaskType;
+const retrievalQueryTaskType = 'RETRIEVAL_QUERY' as GeminiTaskType;
+
+function supportsEmbeddingTaskType(modelName: string) {
+  const normalizedModelName = modelName.replace(/^models\//, '');
+
+  return (
+    normalizedModelName === 'embedding-001' ||
+    normalizedModelName === 'gemini-embedding-001'
+  );
+}
+
+function createEmbeddings(taskType?: GeminiTaskType) {
+  const params: GoogleGenerativeAIEmbeddingsParams = {
+    apiKey: googleApiKey,
+    modelName: embeddingModelName,
+  };
+
+  if (taskType && supportsEmbeddingTaskType(embeddingModelName)) {
+    params.taskType = taskType;
+  }
+
+  return new GoogleGenerativeAIEmbeddings(params);
+}
+
+async function embedDocumentChunks(texts: string[]) {
+  const concurrency =
+    Number.isFinite(embeddingConcurrency) && embeddingConcurrency > 0
+      ? Math.floor(embeddingConcurrency)
+      : 1;
+  const vectors: number[][] = [];
+  let expectedDimensions: number | null = null;
+
+  for (let start = 0; start < texts.length; start += concurrency) {
+    const batch = texts.slice(start, start + concurrency);
+    const batchVectors = await Promise.all(
+      batch.map(async (text, batchIndex) => {
+        const chunkIndex = start + batchIndex;
+        const vector = await documentEmbeddings.embedQuery(text);
+
+        if (vector.length === 0) {
+          throw new Error(
+            `Gemini returned an empty embedding for chunk ${chunkIndex + 1}. Check GOOGLE_API_KEY, Gemini API access/quota, and GEMINI_EMBEDDING_MODEL.`,
+          );
+        }
+
+        if (expectedDimensions === null) {
+          expectedDimensions = vector.length;
+        } else if (vector.length !== expectedDimensions) {
+          throw new Error(
+            `Gemini returned inconsistent embedding dimensions. Expected ${expectedDimensions}, got ${vector.length} for chunk ${chunkIndex + 1}.`,
+          );
+        }
+
+        return vector;
+      }),
+    );
+
+    vectors.push(...batchVectors);
+    console.log(`🧠 Generated ${vectors.length}/${texts.length} embeddings...`);
+  }
+
+  return vectors;
+}
+
 export const supabaseClient = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
 });
 
 // 2. Initialize Google Generative AI Embeddings
 // Using the official LangChain implementation for better reliability
-export const embeddings = new GoogleGenerativeAIEmbeddings({
-  apiKey: googleApiKey,
-  modelName: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001',
-});
+export const documentEmbeddings = createEmbeddings(retrievalDocumentTaskType);
+export const embeddings = createEmbeddings(retrievalQueryTaskType);
 
 // Define vectorStore globally so it can be exported and used in chatbot.ts
 export const vectorStore = new SupabaseVectorStore(embeddings, {
@@ -84,18 +159,25 @@ export async function ingestPDF(filePath: string) {
     chunkSize: 800,
     chunkOverlap: 150,
   });
-  const splitDocs = await textSplitter.splitDocuments(docs);
-
-  console.log(
-    `📤 Sending ${splitDocs.length} chunks to Supabase Vector Store...`,
+  const splitDocs = (await textSplitter.splitDocuments(docs)).filter((doc) =>
+    doc.pageContent.trim(),
   );
 
-  // This automatically calls Gemini to vectorize text, then updates the Supabase table
-  await SupabaseVectorStore.fromDocuments(splitDocs, embeddings, {
-    client: supabaseClient,
-    tableName: 'document_chunks',
-    queryName: 'match_documents', // Targets the SQL function we created earlier
-  });
+  if (splitDocs.length === 0) {
+    throw new Error(
+      'No usable text chunks found in the PDF after splitting. It might be empty or scanned (image-based).',
+    );
+  }
+
+  console.log(`📤 Generating embeddings for ${splitDocs.length} chunks...`);
+
+  const vectors = await embedDocumentChunks(
+    splitDocs.map((doc) => doc.pageContent),
+  );
+
+  console.log('📦 Sending vectors to Supabase Vector Store...');
+
+  await vectorStore.addVectors(vectors, splitDocs);
 
   console.log('✅ Vector embeddings safely stored in Supabase!');
 
