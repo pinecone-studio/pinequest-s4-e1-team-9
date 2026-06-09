@@ -9,12 +9,65 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
         background: 'var(--background)',
         foreground: 'var(--foreground)',
+        card: {
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
+        },
+        muted: {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive)',
+        },
       },
       fontFamily: {
-        sans: ['var(--font-inter)'],
-        mono: ['var(--font-roboto-mono)'],
+        sans: [
+          "'Google Sans'",
+          "'Segoe UI'",
+          'system-ui',
+          'sans-serif',
+        ],
+        mono: [
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          "'Liberation Mono'",
+          "'Courier New'",
+          'monospace',
+        ],
+      },
+      keyframes: {
+        geminipulse: {
+          '0%, 80%, 100%': { opacity: '0.3', transform: 'scale(0.8)' },
+          '40%': { opacity: '1', transform: 'scale(1)' },
+        },
+      },
+      animation: {
+        geminipulse: 'geminipulse 1.2s ease-in-out infinite',
       },
     },
   },
