@@ -1,5 +1,5 @@
-import GeminiPage from '@/app/_components/ChatPage';
+import ChatPage from '@/features/chat/components/ChatPage';
 
 export default function Home() {
-  return <GeminiPage />;
+  return <ChatPage />;
 }

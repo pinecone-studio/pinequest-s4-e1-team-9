@@ -1,14 +1,7 @@
-import { Annotation, StateGraph } from '@langchain/langgraph';
+import { startHttpServer } from './server/http.js';
 
-const graphState = Annotation.Root({
-  messages: Annotation<unknown[]>({
-    reducer: (x, y) => x.concat(y),
-    default: () => [],
-  }),
-});
+export { startHttpServer };
 
-const workflow = new StateGraph(graphState);
-
-// Add nodes and edges here
-
-export const graph = workflow.compile();
+if (import.meta.main) {
+  startHttpServer();
+}

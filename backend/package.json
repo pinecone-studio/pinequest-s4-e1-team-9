@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "langgraphjs dev",
-    "chatbot": "bun src/chatbot.ts",
-    "build": "bunx prisma generate && bunx prisma migrate deploy && tsc",
+    "dev": "bun src/index.ts",
+    "start": "bun dist/src/index.js",
+    "chatbot": "bun src/index.ts",
+    "build": "bunx prisma generate && tsc",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "bunx prisma migrate deploy",
     "clean": "rm -rf dist",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -18,7 +21,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "langgraph:dev": "bun run dev"
+    "langgraph:dev": "langgraphjs dev"
   },
   "dependencies": {
     "@langchain/community": "^0.3.26",
