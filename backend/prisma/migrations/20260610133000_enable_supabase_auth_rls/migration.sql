@@ -115,60 +115,63 @@ BEGIN
       ON CONFLICT (id) DO UPDATE SET public = false
     $storage$;
 
-    EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY';
+    BEGIN
+      EXECUTE 'DROP POLICY IF EXISTS "Users can read own document files" ON storage.objects';
+      EXECUTE 'DROP POLICY IF EXISTS "Users can upload own document files" ON storage.objects';
+      EXECUTE 'DROP POLICY IF EXISTS "Users can update own document files" ON storage.objects';
+      EXECUTE 'DROP POLICY IF EXISTS "Users can delete own document files" ON storage.objects';
 
-    EXECUTE 'DROP POLICY IF EXISTS "Users can read own document files" ON storage.objects';
-    EXECUTE 'DROP POLICY IF EXISTS "Users can upload own document files" ON storage.objects';
-    EXECUTE 'DROP POLICY IF EXISTS "Users can update own document files" ON storage.objects';
-    EXECUTE 'DROP POLICY IF EXISTS "Users can delete own document files" ON storage.objects';
+      EXECUTE $storage$
+        CREATE POLICY "Users can read own document files"
+          ON storage.objects
+          FOR SELECT
+          TO authenticated
+          USING (
+            bucket_id = 'user-documents'
+            AND name LIKE auth.uid()::text || '/%'
+          )
+      $storage$;
 
-    EXECUTE $storage$
-      CREATE POLICY "Users can read own document files"
-        ON storage.objects
-        FOR SELECT
-        TO authenticated
-        USING (
-          bucket_id = 'user-documents'
-          AND name LIKE auth.uid()::text || '/%'
-        )
-    $storage$;
+      EXECUTE $storage$
+        CREATE POLICY "Users can upload own document files"
+          ON storage.objects
+          FOR INSERT
+          TO authenticated
+          WITH CHECK (
+            bucket_id = 'user-documents'
+            AND name LIKE auth.uid()::text || '/%'
+          )
+      $storage$;
 
-    EXECUTE $storage$
-      CREATE POLICY "Users can upload own document files"
-        ON storage.objects
-        FOR INSERT
-        TO authenticated
-        WITH CHECK (
-          bucket_id = 'user-documents'
-          AND name LIKE auth.uid()::text || '/%'
-        )
-    $storage$;
+      EXECUTE $storage$
+        CREATE POLICY "Users can update own document files"
+          ON storage.objects
+          FOR UPDATE
+          TO authenticated
+          USING (
+            bucket_id = 'user-documents'
+            AND name LIKE auth.uid()::text || '/%'
+          )
+          WITH CHECK (
+            bucket_id = 'user-documents'
+            AND name LIKE auth.uid()::text || '/%'
+          )
+      $storage$;
 
-    EXECUTE $storage$
-      CREATE POLICY "Users can update own document files"
-        ON storage.objects
-        FOR UPDATE
-        TO authenticated
-        USING (
-          bucket_id = 'user-documents'
-          AND name LIKE auth.uid()::text || '/%'
-        )
-        WITH CHECK (
-          bucket_id = 'user-documents'
-          AND name LIKE auth.uid()::text || '/%'
-        )
-    $storage$;
-
-    EXECUTE $storage$
-      CREATE POLICY "Users can delete own document files"
-        ON storage.objects
-        FOR DELETE
-        TO authenticated
-        USING (
-          bucket_id = 'user-documents'
-          AND name LIKE auth.uid()::text || '/%'
-        )
-    $storage$;
+      EXECUTE $storage$
+        CREATE POLICY "Users can delete own document files"
+          ON storage.objects
+          FOR DELETE
+          TO authenticated
+          USING (
+            bucket_id = 'user-documents'
+            AND name LIKE auth.uid()::text || '/%'
+          )
+      $storage$;
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Skipping storage.objects policy setup because the connected database role is not the table owner.';
+    END;
   END IF;
 END
 $$;
