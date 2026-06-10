@@ -1,8 +1,8 @@
 import { embedDocumentChunks } from '../../ai/embeddings.js';
 import {
+  assertSupabaseServiceRoleConfigured,
   getSupabaseRetriever,
   storeDocumentChunksWithVectors,
-  warnIfUsingPublicSupabaseKey,
 } from '../retrieval/vector-store.js';
 import { splitPdfDocuments } from './chunk.service.js';
 import { loadPdfDocuments } from './pdf.service.js';
@@ -14,7 +14,7 @@ export async function ingestPDF({
   documentId,
   filename,
 }: IngestPdfInput) {
-  warnIfUsingPublicSupabaseKey();
+  assertSupabaseServiceRoleConfigured();
 
   console.log('Loading local PDF document...');
   const docs = await loadPdfDocuments(filePath);
@@ -39,7 +39,7 @@ export async function ingestPDF({
   console.log('Vector embeddings safely stored in Supabase.');
 
   return {
-    retriever: getSupabaseRetriever(),
+    retriever: getSupabaseRetriever(userId),
     chunkCount: result.count,
   };
 }

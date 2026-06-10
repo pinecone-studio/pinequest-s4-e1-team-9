@@ -4,7 +4,7 @@ import { env } from '../config/env.js';
 import { handleChatRoute } from '../routes/chat.route.js';
 import { handleHealthRoute } from '../routes/health.route.js';
 import { handleUploadRoute } from '../routes/upload.route.js';
-import { createCorsHeaders } from './cors.js';
+import { createCorsHeaders, isAllowedCorsOrigin } from './cors.js';
 import { sendJson } from './errors.js';
 
 type RouteHandler = (
@@ -20,9 +20,17 @@ const routeHandlers: RouteHandler[] = [
 ];
 
 export function startHttpServer(port = env.port, host = env.host) {
-  const corsHeaders = createCorsHeaders();
-
   const server = createServer(async (req, res) => {
+    const requestOrigin = Array.isArray(req.headers.origin)
+      ? req.headers.origin[0]
+      : req.headers.origin;
+    const corsHeaders = createCorsHeaders(requestOrigin);
+
+    if (!isAllowedCorsOrigin(requestOrigin)) {
+      sendJson(res, 403, { error: 'Origin is not allowed.' }, corsHeaders);
+      return;
+    }
+
     if (req.method === 'OPTIONS') {
       res.writeHead(204, corsHeaders);
       res.end();

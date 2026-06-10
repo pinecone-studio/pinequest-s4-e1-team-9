@@ -26,12 +26,31 @@ function resolvePositiveInteger(value: string | undefined, fallback: number) {
   return Math.floor(parsed);
 }
 
+function resolveStringList(value: string | undefined, fallback: string[]) {
+  const values = value
+    ?.split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const resolvedValues = values?.length ? values : fallback;
+
+  if (resolvedValues.includes('*')) {
+    throw new Error('FRONTEND_ORIGIN must not contain wildcard origins.');
+  }
+
+  return resolvedValues;
+}
+
 const mib = 1024 * 1024;
 
 export const env = {
   port: resolvePort(),
   host: process.env.HOST || '0.0.0.0',
-  frontendOrigin: process.env.FRONTEND_ORIGIN || '*',
+  frontendOrigins: resolveStringList(process.env.FRONTEND_ORIGIN, [
+    'http://localhost:3000',
+  ]),
+  supabaseStorageBucket:
+    process.env.SUPABASE_STORAGE_BUCKET || 'user-documents',
   defaultUserId:
     process.env.DEFAULT_USER_ID || '00000000-0000-4000-8000-000000000000',
   maxPdfFileSizeBytes: resolvePositiveInteger(
@@ -65,30 +84,73 @@ export const env = {
     process.env.GEMINI_EMBEDDING_CONCURRENCY,
     4,
   ),
+  chatRateLimitPerMinute: resolvePositiveInteger(
+    process.env.CHAT_RATE_LIMIT_PER_MINUTE,
+    20,
+  ),
+  uploadRateLimitPerMinute: resolvePositiveInteger(
+    process.env.UPLOAD_RATE_LIMIT_PER_MINUTE,
+    5,
+  ),
 };
 
-export function getSupabaseVectorConfig() {
+function getSupabaseUrl() {
   const supabaseUrl =
     process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseWriteKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_KEY;
-  const supabaseKey =
-    supabaseWriteKey ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl) {
     throw new Error(
-      'Missing Supabase configuration. Ensure SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, or NEXT_PUBLIC_SUPABASE_ANON_KEY are set.',
+      'Missing Supabase URL. Ensure SUPABASE_URL is set on the backend.',
+    );
+  }
+
+  return supabaseUrl;
+}
+
+export function getSupabaseAuthConfig() {
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseAnonKey =
+    process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseAnonKey) {
+    throw new Error(
+      'Missing Supabase anon key. Ensure SUPABASE_ANON_KEY is set on the backend.',
     );
   }
 
   return {
     supabaseUrl,
-    supabaseWriteKey,
-    supabaseKey,
+    supabaseAnonKey,
+  };
+}
+
+export function getSupabaseServiceRoleConfig() {
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseWriteKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseWriteKey) {
+    throw new Error(
+      'Missing backend Supabase service-role key. Ensure SUPABASE_SERVICE_ROLE_KEY is set server-side.',
+    );
+  }
+
+  return {
+    supabaseUrl,
+    supabaseServiceRoleKey: supabaseWriteKey,
+  };
+}
+
+export function getSupabaseVectorConfig() {
+  const { supabaseUrl, supabaseServiceRoleKey } =
+    getSupabaseServiceRoleConfig();
+
+  return {
+    supabaseUrl,
+    supabaseWriteKey: supabaseServiceRoleKey,
+    supabaseKey: supabaseServiceRoleKey,
   };
 }
 

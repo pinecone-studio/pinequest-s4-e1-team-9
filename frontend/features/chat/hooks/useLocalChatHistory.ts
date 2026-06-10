@@ -3,12 +3,16 @@
 import type { Conversation, Message } from '@/shared/types/chat';
 import { useCallback, useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'research_docs_chat_history';
+const STORAGE_KEY_PREFIX = 'research_docs_chat_history';
 const MAX_CONVERSATIONS = 100;
 
-function readStorage(): Conversation[] {
+function getStorageKey(userId: string) {
+  return `${STORAGE_KEY_PREFIX}:${userId}`;
+}
+
+function readStorage(storageKey: string): Conversation[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return [];
     return JSON.parse(raw) as Conversation[];
   } catch {
@@ -16,9 +20,9 @@ function readStorage(): Conversation[] {
   }
 }
 
-function writeStorage(conversations: Conversation[]) {
+function writeStorage(storageKey: string, conversations: Conversation[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    localStorage.setItem(storageKey, JSON.stringify(conversations));
   } catch {}
 }
 
@@ -29,19 +33,21 @@ function deriveTitle(messages: Message[]): string {
   return text.length > 60 ? text.slice(0, 57) + '…' : text;
 }
 
-export function useLocalChatHistory() {
+export function useLocalChatHistory(userId: string) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const storageKey = getStorageKey(userId);
 
   useEffect(() => {
-    setConversations(readStorage());
-  }, []);
+    setConversations(readStorage(storageKey));
+    setActiveId(null);
+  }, [storageKey]);
 
   useEffect(() => {
     if (conversations.length > 0) {
-      writeStorage(conversations);
+      writeStorage(storageKey, conversations);
     }
-  }, [conversations]);
+  }, [conversations, storageKey]);
 
   const createConversation = useCallback((): string => {
     const id = crypto.randomUUID();
@@ -55,12 +61,12 @@ export function useLocalChatHistory() {
     };
     setConversations((prev) => {
       const next = [newConvo, ...prev].slice(0, MAX_CONVERSATIONS);
-      writeStorage(next);
+      writeStorage(storageKey, next);
       return next;
     });
     setActiveId(id);
     return id;
-  }, []);
+  }, [storageKey]);
   const saveMessages = useCallback(
     (conversationId: string, messages: Message[]) => {
       setConversations((prev) => {
@@ -73,11 +79,11 @@ export function useLocalChatHistory() {
             messages,
           };
         });
-        writeStorage(next);
+        writeStorage(storageKey, next);
         return next;
       });
     },
-    [],
+    [storageKey],
   );
   const loadConversation = useCallback(
     (conversationId: string): Message[] => {
@@ -91,21 +97,21 @@ export function useLocalChatHistory() {
     (conversationId: string) => {
       setConversations((prev) => {
         const next = prev.filter((c) => c.id !== conversationId);
-        writeStorage(next);
+        writeStorage(storageKey, next);
         return next;
       });
       if (activeId === conversationId) {
         setActiveId(null);
       }
     },
-    [activeId],
+    [activeId, storageKey],
   );
 
   const clearAll = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(storageKey);
     setConversations([]);
     setActiveId(null);
-  }, []);
+  }, [storageKey]);
 
   return {
     conversations,

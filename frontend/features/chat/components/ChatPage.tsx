@@ -1,5 +1,6 @@
 'use client';
 
+import AuthGate from '@/features/auth/AuthGate';
 import ChatArea from '@/features/chat/components/ChatArea';
 import EmptyState from '@/features/chat/components/EmptyState';
 import HeaderActions from '@/features/chat/components/HeaderActions';
@@ -7,6 +8,14 @@ import Sidebar from '@/features/chat/components/Sidebar';
 import { useChat } from '@/features/chat/hooks/useChat';
 
 export default function ChatPage() {
+  return (
+    <AuthGate>
+      <ChatWorkspace />
+    </AuthGate>
+  );
+}
+
+function ChatWorkspace() {
   const {
     messages,
     hasMessages,

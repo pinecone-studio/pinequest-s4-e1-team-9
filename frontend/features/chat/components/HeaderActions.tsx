@@ -1,8 +1,9 @@
 'use client';
 
-import { Moon, Sun } from 'lucide-react';
+import { LogOut, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { useAuth } from '@/features/auth/AuthProvider';
 import { Button } from '@/shared/ui/button';
 
 function IconBtn({
@@ -49,6 +50,7 @@ function IconBtn({
 }
 
 export default function HeaderActions() {
+  const { signOut } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
@@ -65,6 +67,19 @@ export default function HeaderActions() {
   return (
     <div className="absolute top-4 right-5 flex items-center gap-1 z-10">
       <IconBtn label="Theme" onClick={toggleTheme} isDarkMode={isDarkMode} />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Sign out"
+        title="Sign out"
+        onClick={() => {
+          void signOut();
+        }}
+        className="rounded-none text-muted-foreground transition-colors duration-150"
+      >
+        <LogOut className="size-5" aria-hidden="true" />
+      </Button>
     </div>
   );
 }

@@ -35,6 +35,10 @@ Fill in the backend values in `backend/.env`:
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_STORAGE_BUCKET=user-documents
+FRONTEND_ORIGIN=http://localhost:3000
+CHAT_RATE_LIMIT_PER_MINUTE=20
+UPLOAD_RATE_LIMIT_PER_MINUTE=5
 DEFAULT_USER_ID=00000000-0000-4000-8000-000000000000
 PDF_MAX_FILE_SIZE_BYTES=26214400
 CHAT_MAX_HISTORY_MESSAGES=10
@@ -51,13 +55,17 @@ DIRECT_URL=
 The frontend local API defaults should point at the backend dev server:
 
 ```txt
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_CHAT_API_URL=http://localhost:4000/chat
 NEXT_PUBLIC_UPLOAD_API_URL=http://localhost:4000/upload
+NEXT_PUBLIC_CHAT_MAX_HISTORY_MESSAGES=10
 ```
 
-Until Supabase Auth is added, the backend stores uploads under
-`DEFAULT_USER_ID`. Requests may override this for local testing with an
-`x-user-id` header, but it must be a valid UUID.
+Supabase Auth is enabled for the HTTP API. The frontend signs users in with
+Supabase Auth and sends `Authorization: Bearer <access_token>` to `/upload` and
+`/chat`. The backend derives `user_id` from that session. `DEFAULT_USER_ID` is
+kept only for local/manual scripts.
 
 PDF uploads are intentionally strict:
 
@@ -73,8 +81,29 @@ Chat/RAG requests are also budgeted:
 - long chat messages are trimmed before inference
 - retrieval is filtered to the current request user
 - retrieved PDF context is capped before it enters the prompt
+- `/chat` rejects oversized request bodies, too many messages, and messages
+  over the configured character limit
+- `/chat` and `/upload` are rate-limited per authenticated user
 - `/chat` returns `reply`, structured `citations`, retrieval metadata, and
   non-sensitive warnings
+
+## Auth And Ownership
+
+The backend enforces the ownership shape that Supabase Auth and RLS depend on:
+
+- `user_documents` rows always belong to a `user_id`
+- `document_chunks` rows require both `user_id` and `document_id`
+- document chunks are constrained to a matching owned `user_documents` row
+- uploads create a `user_documents` record before chunks are stored
+- retrieval requires a user-scoped `user_id` filter
+- chat messages are written to `chat_messages` with `user_id` and optional
+  `conversation_id`
+- service-role Supabase keys are backend-only environment variables
+- original PDF files are uploaded to the private `user-documents` storage
+  bucket under `user_id/document_id/...`
+- RLS policies allow users to access only their own `user_documents`,
+  document chunks through owned documents, own `chat_messages`, and private
+  storage paths
 
 ## Development Commands
 
