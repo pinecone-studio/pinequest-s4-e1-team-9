@@ -1,48 +1,225 @@
 # pinequest-s4-e1-team-9
 
-AI PDF chatbot төсөл. Энэ repo нь Bun workspace ашигладаг monorepo бөгөөд `backend` болон `frontend` гэсэн хоёр хэсэгтэй.
+AI PDF chatbot project built as a Bun monorepo with two workspaces:
 
-## Шаардлага
+- `backend`: HTTP API for chat, PDF upload, PDF ingestion, and RAG retrieval.
+- `frontend`: Next.js app for the chat and upload UI.
 
-- Bun `1.3.14` эсвэл түүнээс дээш
-- Node.js `20.16.0` - `24.x`
+The real backend entrypoint is the HTTP API server in `backend/src/index.ts`.
+LangGraph is still available for experiments in `backend/src/ai/graph.ts`, but
+it is not the main application server right now.
 
-## Эхлүүлэх command-ууд
+## Requirements
 
-Dependency install хийх:
+- Bun `1.3.14` or newer
+- Node.js `20.16.0` through `24.x`
+
+## Setup
+
+Install dependencies from the repo root:
 
 ```bash
 bun install
 ```
 
-Бүх project build шалгах:
+Create local environment files:
 
 ```bash
-bun run build
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
 ```
 
-Бүх workspace-ийг development mode-оор ажиллуулах:
+Fill in the backend values in `backend/.env`:
+
+```txt
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+DEFAULT_USER_ID=00000000-0000-4000-8000-000000000000
+PDF_MAX_FILE_SIZE_BYTES=26214400
+CHAT_MAX_HISTORY_MESSAGES=10
+CHAT_MAX_MESSAGE_CHARS=4000
+RAG_RETRIEVAL_MATCH_COUNT=5
+RAG_MAX_CONTEXT_CHARS=12000
+RAG_MAX_SOURCE_CHARS=2500
+GOOGLE_API_KEY=
+GROQ_API_KEY=
+DATABASE_URL=
+DIRECT_URL=
+```
+
+The frontend local API defaults should point at the backend dev server:
+
+```txt
+NEXT_PUBLIC_CHAT_API_URL=http://localhost:4000/chat
+NEXT_PUBLIC_UPLOAD_API_URL=http://localhost:4000/upload
+```
+
+Until Supabase Auth is added, the backend stores uploads under
+`DEFAULT_USER_ID`. Requests may override this for local testing with an
+`x-user-id` header, but it must be a valid UUID.
+
+PDF uploads are intentionally strict:
+
+- only `.pdf` files are accepted
+- MIME type must be PDF
+- file header must start with `%PDF-`
+- empty files are rejected
+- default max size is 25 MB
+
+Chat/RAG requests are also budgeted:
+
+- only the newest chat messages are sent to the model
+- long chat messages are trimmed before inference
+- retrieval is filtered to the current request user
+- retrieved PDF context is capped before it enters the prompt
+- `/chat` returns `reply`, structured `citations`, retrieval metadata, and
+  non-sensitive warnings
+
+## Development Commands
+
+Run the full local app:
 
 ```bash
 bun run dev
 ```
 
-Зөвхөн backend LangGraph server ажиллуулах:
+This starts:
+
+- Backend HTTP API: `http://localhost:4000`
+- Frontend Next.js app: `http://localhost:3000`
+
+Run only the frontend:
+
+```bash
+bun run dev:frontend
+```
+
+Run only the backend HTTP API:
+
+```bash
+bun run dev:backend
+```
+
+Run the backend chatbot server directly:
+
+```bash
+bun run dev:chatbot
+```
+
+Run the optional LangGraph dev server:
 
 ```bash
 bun run --cwd backend langgraph:dev
 ```
 
-Зөвхөн frontend Next.js server ажиллуулах:
+## Checks
+
+Format check:
+
+```bash
+bun run format:check
+```
+
+Lint:
+
+```bash
+bun run lint
+```
+
+Typecheck:
+
+```bash
+bun run typecheck
+```
+
+Build:
+
+```bash
+bun run build
+```
+
+Tests:
+
+```bash
+bun run test
+```
+
+Note: test scripts exist, but the project does not currently contain Jest test
+files yet.
+
+## Database Migrations
+
+`bun run build` does not apply database migrations.
+
+Apply migrations only when intentionally updating the database:
+
+```bash
+bun run db:migrate
+```
+
+## Backend Scripts
+
+From the repo root:
+
+```bash
+bun run --cwd backend dev
+bun run --cwd backend start
+bun run --cwd backend build
+bun run --cwd backend db:migrate
+bun run --cwd backend langgraph:dev
+```
+
+`backend:start` expects compiled output, so run `bun run --cwd backend build`
+first.
+
+## Backend Source Layout
+
+```txt
+backend/src/
+  config/      environment loading and config helpers
+  server/      HTTP server, CORS, JSON/error helpers
+  routes/      thin HTTP route handlers
+  features/    chat, document ingestion, and retrieval services
+  ai/          Groq, Gemini embeddings, and optional LangGraph graph
+  db/          Prisma client and repositories
+  scripts/     local/manual backend scripts
+  index.ts     real HTTP API entrypoint
+```
+
+## Frontend Scripts
+
+From the repo root:
 
 ```bash
 bun run --cwd frontend dev
+bun run --cwd frontend build
+bun run --cwd frontend start
+bun run --cwd frontend lint
+bun run --cwd frontend typecheck
 ```
 
-## Milestone 0 шалгах
+## Frontend Source Layout
 
-Milestone 0 дууссан гэж үзэхийн тулд:
+```txt
+frontend/
+  app/         Next.js routes only
+  config/      client environment defaults
+  features/    chat and document feature modules
+  shared/      reusable UI, lib helpers, and shared types
+```
 
-- `bun install` амжилттай дууссан байх
-- `bun run build` dependency missing error-гүй амжилттай дууссан байх
-- Багийн гишүүд бүгд дээрх ижил command-уудыг ашигладаг байх
+## Docker Backend
+
+The backend Dockerfile builds the backend and starts the compiled HTTP server:
+
+```bash
+cd backend
+docker build -t pinequest-backend .
+docker run --env-file .env -p 4000:4000 pinequest-backend
+```
+
+## Team Rule
+
+Use Bun commands only for this project. Do not use npm, pnpm, or yarn unless the
+team intentionally changes the package manager.

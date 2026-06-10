@@ -10,7 +10,6 @@
     "outDir": "dist",
     "types": ["jest", "node"],
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": true,
     "noEmit": false
   },
   "include": ["**/*.ts", "**/*.js"],
