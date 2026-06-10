@@ -3,7 +3,8 @@ import { env } from '../../config/env.js';
 import { getVectorStore } from './vector-store.js';
 
 type RetrievalOptions = {
-  userId?: string;
+  userId: string;
+  documentId?: string;
 };
 
 export type RetrievedCitation = {
@@ -107,9 +108,16 @@ function buildContextFromDocuments(docs: DocumentInterface[]) {
 
 export async function retrieveRelevantDocuments(
   query: string,
-  options: RetrievalOptions = {},
+  options: RetrievalOptions,
 ) {
-  const filter = options.userId ? { user_id: options.userId } : undefined;
+  if (!options.userId.trim()) {
+    throw new Error('Retrieval requires a user id.');
+  }
+
+  const filter = {
+    user_id: options.userId,
+    ...(options.documentId ? { document_id: options.documentId } : {}),
+  };
 
   return (await getVectorStore().similaritySearch(
     query,
@@ -120,7 +128,7 @@ export async function retrieveRelevantDocuments(
 
 export async function buildRagContext(
   query: string,
-  options: RetrievalOptions = {},
+  options: RetrievalOptions,
 ): Promise<RagContext> {
   const retrievedDocs = await retrieveRelevantDocuments(query, options);
 

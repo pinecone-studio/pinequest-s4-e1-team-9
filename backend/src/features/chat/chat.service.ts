@@ -10,7 +10,8 @@ import { createRagSystemMessage } from './prompt.js';
 import type { ChatMessage } from './types.js';
 
 type GenerateChatResponseOptions = {
-  userId?: string;
+  userId: string;
+  conversationId?: string | null;
 };
 
 export type ChatResponseResult = {
@@ -93,30 +94,69 @@ function createResult(input: {
   };
 }
 
-export function isChatMessage(value: unknown): value is ChatMessage {
-  if (!value || typeof value !== 'object') {
-    return false;
+async function persistChatExchange(input: {
+  userId: string;
+  conversationId?: string | null;
+  userMessage: ChatMessage | undefined;
+  result: ChatResponseResult;
+}) {
+  if (!input.userMessage || input.userMessage.role !== 'user') {
+    return;
   }
 
-  const message = value as Partial<ChatMessage>;
+  const { createChatMessages } =
+    await import('../../db/repositories/chat-messages.repo.js');
 
-  return (
-    (message.role === 'user' || message.role === 'assistant') &&
-    typeof message.content === 'string' &&
-    message.content.trim().length > 0
-  );
+  await createChatMessages([
+    {
+      userId: input.userId,
+      conversationId: input.conversationId,
+      role: 'user',
+      content: input.userMessage.content,
+    },
+    {
+      userId: input.userId,
+      conversationId: input.conversationId,
+      role: 'assistant',
+      content: input.result.reply,
+      metadata: {
+        citations: input.result.citations,
+        retrieval: input.result.retrieval,
+        warnings: input.result.warnings,
+      },
+    },
+  ]);
+}
+
+async function persistChatExchangeSafely(input: {
+  userId: string;
+  conversationId?: string | null;
+  userMessage: ChatMessage | undefined;
+  result: ChatResponseResult;
+}) {
+  try {
+    await persistChatExchange(input);
+  } catch (error) {
+    input.result.warnings.push('Chat history could not be saved.');
+    console.error('Error saving chat messages:', error);
+  }
 }
 
 export async function generateChatResponse(
   messages: ChatMessage[],
-  options: GenerateChatResponseOptions = {},
+  options: GenerateChatResponseOptions,
 ): Promise<ChatResponseResult> {
   if (!messages.length) {
     throw new Error('At least one message is required.');
   }
 
+  if (!options.userId.trim()) {
+    throw new Error('Chat responses require a user id.');
+  }
+
   const budgetedMessages = getBudgetedMessages(messages);
-  const userQuery = budgetedMessages[budgetedMessages.length - 1].content;
+  const latestMessage = budgetedMessages[budgetedMessages.length - 1];
+  const userQuery = latestMessage.content;
   let ragContext = {
     context: '',
     citations: [] as RetrievedCitation[],
@@ -147,7 +187,7 @@ export async function generateChatResponse(
       ...toLangChainMessages(budgetedMessages),
     ]);
 
-    return createResult({
+    const result = createResult({
       reply: contentToText(response.content).trim() || 'No response.',
       citations: ragContext.citations,
       sourceCount: ragContext.sourceCount,
@@ -155,15 +195,33 @@ export async function generateChatResponse(
       contextTruncated: ragContext.truncated,
       warnings,
     });
+
+    await persistChatExchangeSafely({
+      userId: options.userId,
+      conversationId: options.conversationId,
+      userMessage: latestMessage,
+      result,
+    });
+
+    return result;
   } catch (error) {
     console.error('Error generating chat response:', error);
     if (error instanceof Error && error.message.includes('429')) {
-      return createResult({
+      const result = createResult({
         reply:
           'I am currently experiencing high demand and have exceeded my usage quota. Please try again in a moment.',
         retrievalFailed,
         warnings: [...warnings, 'The chat model rate limit was reached.'],
       });
+
+      await persistChatExchangeSafely({
+        userId: options.userId,
+        conversationId: options.conversationId,
+        userMessage: latestMessage,
+        result,
+      });
+
+      return result;
     }
 
     throw error;

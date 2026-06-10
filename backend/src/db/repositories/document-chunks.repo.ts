@@ -4,8 +4,8 @@ import prisma from '../prisma.js';
 type DocumentChunkId = bigint | number | string;
 
 type CreateDocumentChunkInput = {
-  userId?: string | null;
-  documentId?: string | null;
+  userId: string;
+  documentId: string;
   content?: string | null;
   metadata?: Prisma.DocumentChunkUncheckedCreateInput['metadata'];
   chunkIndex?: number | null;
@@ -26,8 +26,8 @@ function toBigIntId(id: DocumentChunkId) {
 export const createDocumentChunk = async (input: CreateDocumentChunkInput) => {
   const chunk = await prisma.documentChunk.create({
     data: {
-      userId: input.userId ?? null,
-      documentId: input.documentId ?? null,
+      userId: input.userId,
+      documentId: input.documentId,
       content: input.content?.trim() || null,
       metadata: input.metadata,
       chunkIndex: input.chunkIndex ?? null,
@@ -47,8 +47,8 @@ export const createDocumentChunks = async (
 
   const result = await prisma.documentChunk.createMany({
     data: inputs.map((input) => ({
-      userId: input.userId ?? null,
-      documentId: input.documentId ?? null,
+      userId: input.userId,
+      documentId: input.documentId,
       content: input.content?.trim() || null,
       metadata: input.metadata,
       chunkIndex: input.chunkIndex ?? null,
@@ -60,7 +60,7 @@ export const createDocumentChunks = async (
 };
 
 export const getDocumentChunks = async (
-  userId?: string,
+  userId: string,
   documentId?: string,
 ) => {
   const chunks = await prisma.documentChunk.findMany({
@@ -76,7 +76,7 @@ export const getDocumentChunks = async (
 
 export const getDocumentChunkById = async (
   id: DocumentChunkId,
-  userId?: string,
+  userId: string,
 ) => {
   const chunk = await prisma.documentChunk.findFirst({
     where: {
@@ -91,7 +91,7 @@ export const getDocumentChunkById = async (
 export const updateDocumentChunk = async (
   id: DocumentChunkId,
   data: UpdateDocumentChunkInput,
-  userId?: string,
+  userId: string,
 ) => {
   const existingChunk = await getDocumentChunkById(id, userId);
 
@@ -114,7 +114,7 @@ export const updateDocumentChunk = async (
 
 export const deleteDocumentChunk = async (
   id: DocumentChunkId,
-  userId?: string,
+  userId: string,
 ) => {
   const existingChunk = await getDocumentChunkById(id, userId);
 
@@ -130,7 +130,7 @@ export const deleteDocumentChunk = async (
 };
 
 export const deleteDocumentChunks = async (
-  userId?: string,
+  userId: string,
   documentId?: string,
 ) => {
   const result = await prisma.documentChunk.deleteMany({

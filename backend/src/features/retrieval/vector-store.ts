@@ -1,8 +1,8 @@
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
 import type { DocumentInterface } from '@langchain/core/documents';
-import { createClient } from '@supabase/supabase-js';
 import { getQueryEmbeddings } from '../../ai/embeddings.js';
 import { env, getSupabaseVectorConfig } from '../../config/env.js';
+import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 
 type StoreDocumentChunksInput = {
   userId: string;
@@ -28,33 +28,14 @@ type DocumentChunksInsertTable = {
   ) => Promise<{ error: { message: string } | null }>;
 };
 
-let warnedAboutPublicSupabaseKey = false;
-let supabaseClient: ReturnType<typeof createClient> | null = null;
 let vectorStore: SupabaseVectorStore | null = null;
 
-export function warnIfUsingPublicSupabaseKey() {
-  const { supabaseWriteKey } = getSupabaseVectorConfig();
-
-  if (supabaseWriteKey || warnedAboutPublicSupabaseKey) {
-    return;
-  }
-
-  warnedAboutPublicSupabaseKey = true;
-  console.warn(
-    'SUPABASE_SERVICE_ROLE_KEY is not set. Falling back to SUPABASE_ANON_KEY for PDF ingestion; make sure database grants/RLS allow document_chunks writes.',
-  );
+export function assertSupabaseServiceRoleConfigured() {
+  getSupabaseVectorConfig();
 }
 
 export function getSupabaseClient() {
-  if (!supabaseClient) {
-    const { supabaseUrl, supabaseKey } = getSupabaseVectorConfig();
-
-    supabaseClient = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false },
-    });
-  }
-
-  return supabaseClient;
+  return getSupabaseServiceRoleClient();
 }
 
 export function getVectorStore() {
@@ -69,8 +50,11 @@ export function getVectorStore() {
   return vectorStore;
 }
 
-export function getSupabaseRetriever() {
-  return getVectorStore().asRetriever({ k: env.retrievalMatchCount });
+export function getSupabaseRetriever(userId: string) {
+  return getVectorStore().asRetriever({
+    k: env.retrievalMatchCount,
+    filter: { user_id: userId },
+  });
 }
 
 function getPageNumber(metadata: Record<string, unknown>) {

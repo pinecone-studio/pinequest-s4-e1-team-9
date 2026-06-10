@@ -8,8 +8,7 @@ import { DocumentProcessingError, type UploadedPdfFile } from './types.js';
 
 const pdfHeader = Buffer.from('%PDF-');
 const allowedPdfMimeTypes = new Set(['application/pdf', 'application/x-pdf']);
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uploadRequestOverheadBytes = 1024 * 1024;
 
 function createFetchHeaders(req: IncomingMessage) {
   const headers = new Headers();
@@ -40,18 +39,30 @@ function getSingleHeaderValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export function getRequestUserId(req: IncomingMessage) {
-  const headerUserId = getSingleHeaderValue(req.headers['x-user-id'])?.trim();
-  const userId = headerUserId || env.defaultUserId;
+function validateUploadRequestHeaders(req: IncomingMessage) {
+  const contentType = getSingleHeaderValue(req.headers['content-type']) ?? '';
+  const contentLength = Number(
+    getSingleHeaderValue(req.headers['content-length']) ?? 0,
+  );
 
-  if (!uuidPattern.test(userId)) {
+  if (!contentType.toLowerCase().includes('multipart/form-data')) {
     throw new DocumentProcessingError(
-      'Invalid user id. Upload requests must include a valid UUID user id.',
-      400,
+      'Upload requests must use multipart form data.',
+      415,
     );
   }
 
-  return userId;
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > env.maxPdfFileSizeBytes + uploadRequestOverheadBytes
+  ) {
+    throw new DocumentProcessingError(
+      `The upload request is too large. Maximum PDF size is ${Math.floor(
+        env.maxPdfFileSizeBytes / 1024 / 1024,
+      )} MB.`,
+      413,
+    );
+  }
 }
 
 function validateUploadedPdfMetadata(file: File) {
@@ -151,6 +162,7 @@ export async function saveUploadedPdfFile(
   req: IncomingMessage,
   uploadDir: string,
 ): Promise<UploadedPdfFile | null> {
+  validateUploadRequestHeaders(req);
   await fs.promises.mkdir(uploadDir, { recursive: true });
 
   const request = new Request(

@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "bunx prisma migrate deploy",
     "clean": "rm -rf dist",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:changed": "jest --onlyChanged --passWithNoTests",
     "test:related": "jest --findRelatedTests",

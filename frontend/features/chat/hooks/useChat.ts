@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@/features/auth/AuthProvider';
 import { sendChatMessages } from '@/features/chat/api';
 import { useLocalChatHistory } from '@/features/chat/hooks/useLocalChatHistory';
 import { uploadDocument } from '@/features/documents/api';
@@ -17,6 +18,7 @@ function createMessage(input: Omit<Message, 'id'>): Message {
 }
 
 export function useChat() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [busyState, setBusyState] = useState<BusyState>('idle');
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -31,7 +33,7 @@ export function useChat() {
     saveMessages,
     loadConversation,
     deleteConversation,
-  } = useLocalChatHistory();
+  } = useLocalChatHistory(user?.id ?? 'anonymous');
   const isBusy = busyState !== 'idle';
   const busyLabel =
     busyState === 'uploading'
@@ -147,7 +149,7 @@ export function useChat() {
         if (!text) return;
 
         setBusyState('thinking');
-        const response = await sendChatMessages(nextMessages);
+        const response = await sendChatMessages(nextMessages, conversationId);
         appendAssistantMessage(conversationId, nextMessages, {
           content: response.reply?.trim() || 'No response.',
           citations: response.citations ?? [],

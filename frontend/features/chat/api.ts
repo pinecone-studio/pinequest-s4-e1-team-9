@@ -1,4 +1,5 @@
 import { clientEnv } from '@/config/env';
+import { getAuthHeaders } from '@/features/auth/supabase';
 import type {
   ChatApiMessage,
   ChatResponse,
@@ -7,6 +8,7 @@ import type {
 
 function toApiMessages(messages: Message[]): ChatApiMessage[] {
   return messages
+    .slice(-clientEnv.maxChatHistoryMessages)
     .filter((message) => message.content.trim().length > 0)
     .map((message) => ({
       role: message.role,
@@ -22,11 +24,16 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
   }
 }
 
-export async function sendChatMessages(messages: Message[]) {
+export async function sendChatMessages(
+  messages: Message[],
+  conversationId: string,
+) {
+  const authHeaders = await getAuthHeaders();
   const response = await fetch(clientEnv.chatApiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
     body: JSON.stringify({
+      conversationId,
       messages: toApiMessages(messages),
     }),
   });
