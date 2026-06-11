@@ -1,49 +1,97 @@
 import { Router } from 'express';
 import { upload } from '../middleware/upload.js';
 import fs from 'fs/promises';
+import { env } from '../config/env.js';
+import { ingestPDF } from '../features/documents/ingest.service.js';
+import { uploadDocumentFileToStorage } from '../features/documents/storage.service.js';
+import * as documentsRepo from '../db/repositories/documents.repo.js';
 
 const router = Router();
 
-/**
- * Clean template for PDF text extraction.
- * TODO: Paste your existing PDF extraction logic here.
- */
-async function extractTextFromPDF(filePath: string): Promise<string> {
-  try {
-    // TODO: Paste your existing PDF extraction logic here
-    // Example: const data = await somePdfLibrary.parse(filePath);
-    // return data.text;
-    
-    console.log(`Processing file at: ${filePath}`);
-    return "Placeholder: Extracted text will appear here once logic is pasted.";
-  } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    throw new Error('Failed to extract text from PDF');
-  }
-}
-
 router.post('/extract', upload.single('pdf'), async (req, res) => {
+  let filePath: string | null = null;
+  const userId = env.defaultUserId;
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No PDF file uploaded' });
     }
 
-    const filePath = req.file.path;
-    const extractedText = await extractTextFromPDF(filePath);
+    filePath = req.file.path;
+    const filename = req.file.originalname;
+    const mimeType = req.file.mimetype;
+    const fileSize = req.file.size;
 
-    // Optional: Clean up the file after extraction
-    // await fs.unlink(filePath);
+    console.log(`Processing PDF: ${filename} for user: ${userId}`);
 
-    res.json({
-      message: 'Text extracted successfully',
-      text: extractedText,
-      metadata: {
-        filename: req.file.originalname,
-        size: req.file.size
-      }
+    // 1. Create document entry in DB
+    let userDocument = await documentsRepo.createUserDocument({
+      userId,
+      filename,
+      fileSize,
+      mimeType,
     });
+
+    try {
+      // 2. Upload to Supabase Storage
+      const storagePath = await uploadDocumentFileToStorage({
+        userId,
+        documentId: userDocument.id,
+        filePath,
+        filename,
+        mimeType,
+      });
+
+      // 3. Update storage path
+      userDocument = await documentsRepo.updateUserDocument(userId, userDocument.id, {
+        storagePath,
+      }) ?? userDocument;
+
+      // 4. Ingest PDF (chunking and embedding)
+      const result = await ingestPDF({
+        filePath,
+        userId,
+        documentId: userDocument.id,
+        filename,
+      });
+
+      // 5. Mark as ready
+      await documentsRepo.updateUserDocumentStatus(
+        userId,
+        userDocument.id,
+        'ready'
+      );
+
+      res.json({
+        message: 'PDF processed and embedded successfully',
+        documentId: userDocument.id,
+        chunkCount: result.chunkCount,
+        metadata: {
+          filename,
+          size: fileSize
+        }
+      });
+    } catch (error: any) {
+      console.error('Error during PDF processing:', error);
+      
+      // Mark document as error in DB
+      await documentsRepo.updateUserDocumentStatus(
+        userId,
+        userDocument.id,
+        'error',
+        error.message || 'Failed to process PDF'
+      );
+
+      throw error;
+    }
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('PDF extraction route error:', error);
+    res.status(500).json({ error: error.message || 'Failed to process PDF' });
+  } finally {
+    // Optional: Clean up the temp file after extraction
+    if (filePath) {
+      await fs.unlink(filePath).catch(() => undefined);
+    }
   }
 });
 
