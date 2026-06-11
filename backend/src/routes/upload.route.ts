@@ -64,7 +64,6 @@ export async function handleUploadRoute(
       userId,
       documentId: userDocument.id,
       filePath: uploadedFile.filepath,
-      filename: uploadedFile.originalName,
       mimeType: uploadedFile.mimeType,
     });
 

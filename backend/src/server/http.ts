@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from '../config/env.js';
 import { handleChatRoute } from '../routes/chat.route.js';
+import { handleDocumentPdfUrlRoute } from '../routes/document.route.js';
 import { handleHealthRoute } from '../routes/health.route.js';
 import { handleUploadRoute } from '../routes/upload.route.js';
 import { createCorsHeaders, isAllowedCorsOrigin } from './cors.js';
@@ -21,6 +22,7 @@ type RouteHandler = (
 
 const routeHandlers: RouteHandler[] = [
   handleHealthRoute,
+  handleDocumentPdfUrlRoute,
   handleUploadRoute,
   handleChatRoute,
 ];

@@ -9,3 +9,8 @@ export type UploadDocumentResponse = {
   };
   error?: string;
 };
+
+export type DocumentPdfUrlResponse = {
+  signedUrl?: string;
+  error?: string;
+};

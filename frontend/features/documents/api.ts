@@ -1,6 +1,9 @@
 import { clientEnv } from '@/config/env';
 import { getAuthHeaders } from '@/features/auth/supabase';
-import type { UploadDocumentResponse } from '@/shared/types/documents';
+import type {
+  DocumentPdfUrlResponse,
+  UploadDocumentResponse,
+} from '@/shared/types/documents';
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
   try {
@@ -25,6 +28,25 @@ export async function uploadDocument(file: File) {
 
   if (!response.ok) {
     throw new Error(data.error ?? 'Failed to upload PDF.');
+  }
+
+  return data;
+}
+
+export async function getDocumentPdfSignedUrl(documentId: string) {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch(
+    `${clientEnv.documentsApiUrl}/${encodeURIComponent(documentId)}/pdf-url`,
+    {
+      method: 'GET',
+      headers: authHeaders,
+    },
+  );
+
+  const data = await readJsonResponse<DocumentPdfUrlResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Failed to create PDF link.');
   }
 
   return data;
