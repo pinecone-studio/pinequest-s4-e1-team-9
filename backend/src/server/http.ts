@@ -44,12 +44,20 @@ export function startHttpServer(port = env.port, host = env.host) {
     }
 
     if (req.url && req.url.startsWith('/uploads/') && req.method === 'GET') {
-      const cleanUrl = req.url.split('?')[0].split('#')[0];
-      const relativePath = cleanUrl.replace('/uploads/', '');
-
-      const filePath = path.join(__dirname, '../../uploads', relativePath);
-
       try {
+        const decodedUrl = decodeURIComponent(req.url);
+        const cleanUrl = decodedUrl.split('?')[0].split('#')[0];
+        const relativePath = cleanUrl.replace('/uploads/', '');
+
+        const filePath = path.resolve(
+          __dirname,
+          '../../../../uploads',
+          relativePath,
+        );
+
+        // 👉 Шалгахын тулд серверийн терминал дээр бодит замыг хэвлэж харна
+        console.log('📂 Серверийн хайж буй туйлын зам:', filePath);
+
         if (fs.existsSync(filePath)) {
           res.writeHead(200, {
             ...corsHeaders,
@@ -74,6 +82,7 @@ export function startHttpServer(port = env.port, host = env.host) {
         return;
       }
     }
+
     for (const handler of routeHandlers) {
       if (await handler(req, res, corsHeaders)) {
         return;
