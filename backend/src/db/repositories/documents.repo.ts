@@ -18,6 +18,13 @@ type UpdateUserDocumentInput = {
   storagePath?: string | null;
 };
 
+type UserDocumentUpdateData = {
+  filename?: string;
+  status?: UserDocumentStatus;
+  errorMessage?: string | null;
+  storagePath?: string | null;
+};
+
 export const createUserDocument = async (input: CreateUserDocumentInput) => {
   const userDocument = await prisma.userDocument.create({
     data: {
@@ -64,14 +71,27 @@ export const updateUserDocument = async (
     return null;
   }
 
+  const updateData: UserDocumentUpdateData = {};
+
+  if (data.filename !== undefined) {
+    updateData.filename = data.filename.trim();
+  }
+
+  if (data.status !== undefined) {
+    updateData.status = data.status;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(data, 'errorMessage')) {
+    updateData.errorMessage = data.errorMessage?.trim() || null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(data, 'storagePath')) {
+    updateData.storagePath = data.storagePath?.trim() || null;
+  }
+
   const userDocument = await prisma.userDocument.update({
     where: { id: documentId },
-    data: {
-      filename: data.filename?.trim(),
-      status: data.status,
-      errorMessage: data.errorMessage?.trim() || null,
-      storagePath: data.storagePath?.trim() || null,
-    },
+    data: updateData,
   });
 
   return userDocument;
@@ -108,7 +128,13 @@ export const deleteUserDocument = async (
 
 export const serializeUserDocument = (document: UserDocument) => {
   return {
-    ...document,
+    id: document.id,
+    filename: document.filename,
     fileSize: document.fileSize?.toString() ?? null,
+    mimeType: document.mimeType,
+    status: document.status,
+    errorMessage: document.errorMessage,
+    createdAt: document.createdAt,
+    updatedAt: document.updatedAt,
   };
 };
