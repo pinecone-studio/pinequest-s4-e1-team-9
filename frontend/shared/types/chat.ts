@@ -47,7 +47,7 @@ export type ChatHistoryMessageApi = {
 
 export type ChatResponse = {
   conversationId?: string;
-  conversation?: ChatConversationApi | null;
+  conversation?: Conversation | null;
   reply?: string;
   citations?: Citation[];
   retrieval?: {

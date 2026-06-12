@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { handleChatHistoryRoute } from '../routes/chat-history.route.js';
 import { handleChatRoute } from '../routes/chat.route.js';
 import { handleUploadRoute } from '../routes/upload.route.js';
 import { handleDocumentPdfUrlRoute } from '../routes/document.route.js';
@@ -7,7 +8,7 @@ import { handleHealthRoute } from '../routes/health.route.js';
 export function startHttpServer(port = 4000, host = '0.0.0.0') {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'OPTIONS, GET, POST',
+    'Access-Control-Allow-Methods': 'OPTIONS, GET, POST, DELETE',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 
@@ -20,6 +21,7 @@ export function startHttpServer(port = 4000, host = '0.0.0.0') {
 
     try {
       if (await handleHealthRoute(req, res, corsHeaders)) return;
+      if (await handleChatHistoryRoute(req, res, corsHeaders)) return;
       if (await handleChatRoute(req, res, corsHeaders)) return;
       if (await handleUploadRoute(req, res, corsHeaders)) return;
       if (await handleDocumentPdfUrlRoute(req, res, corsHeaders)) return;
