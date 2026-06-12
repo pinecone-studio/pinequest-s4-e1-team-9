@@ -13,8 +13,14 @@ import type {
 } from '@/shared/types/chat';
 
 const chatApiBaseUrl = clientEnv.chatApiUrl.replace(/\/+$/, '');
+const chatConversationsUrl = `${chatApiBaseUrl}/conversations`;
 const conversationIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type ChatResponseApi = Omit<ChatResponse, 'conversation'> & {
+  conversation?: ChatConversationApi | null;
+  error?: string;
+};
 
 export function isValidConversationId(value: unknown): value is string {
   return typeof value === 'string' && conversationIdPattern.test(value);
@@ -71,9 +77,80 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
   }
 }
 
+function getConversationUrl(conversationId: string) {
+  return `${chatConversationsUrl}/${encodeURIComponent(conversationId)}`;
+}
+
+export async function fetchChatConversations(): Promise<Conversation[]> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch(chatConversationsUrl, {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+  const data = await readJsonResponse<ChatConversationsResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Failed to load chat history.');
+  }
+
+  return (data.conversations ?? []).flatMap((conversation) => {
+    const nextConversation = toConversation(conversation);
+
+    return nextConversation ? [nextConversation] : [];
+  });
+}
+
+export async function fetchConversationMessages(
+  conversationId: string,
+): Promise<Message[]> {
+  if (!isValidConversationId(conversationId)) {
+    throw new Error('Invalid conversation id.');
+  }
+
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch(
+    `${getConversationUrl(conversationId)}/messages`,
+    {
+      method: 'GET',
+      headers: authHeaders,
+    },
+  );
+
+  const data = await readJsonResponse<ChatMessagesResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Failed to load conversation.');
+  }
+
+  return (data.messages ?? []).map(toMessage);
+}
+
+export async function deleteChatConversation(
+  conversationId: string,
+): Promise<DeleteConversationResponse> {
+  if (!isValidConversationId(conversationId)) {
+    throw new Error('Invalid conversation id.');
+  }
+
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch(getConversationUrl(conversationId), {
+    method: 'DELETE',
+    headers: authHeaders,
+  });
+
+  const data = await readJsonResponse<DeleteConversationResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Failed to delete conversation.');
+  }
+
+  return data;
+}
+
 export async function sendChatMessages(
   messages: Message[],
-  conversationId: string,
+  conversationId: string | null,
 ): Promise<ChatResponse> {
   const authHeaders = await getAuthHeaders();
 
@@ -89,16 +166,25 @@ export async function sendChatMessages(
     }),
   });
 
-  const rawData = await readJsonResponse<any>(response);
+  const rawData = await readJsonResponse<ChatResponseApi>(response);
 
   if (!response.ok) {
     throw new Error(rawData?.error ?? 'Request failed.');
   }
 
+  const conversation = rawData.conversation
+    ? toConversation(rawData.conversation)
+    : null;
+  const nextConversationId = isValidConversationId(rawData.conversationId)
+    ? rawData.conversationId
+    : conversation?.id;
+
   return {
+    conversationId: nextConversationId,
+    conversation,
     reply: rawData.reply || 'Хариулт олдсонгүй.',
     citations: rawData.citations ?? [],
     retrieval: rawData.retrieval,
     warnings: rawData.warnings ?? [],
-  } as ChatResponse;
+  };
 }

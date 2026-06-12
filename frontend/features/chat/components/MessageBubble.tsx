@@ -2,7 +2,8 @@ import MessageActions from '@/features/chat/components/MessageActions';
 import { getDocumentPdfSignedUrl } from '@/features/documents/api';
 import FileAttachmentChip from '@/features/documents/components/FileAttachmentChip';
 import type { Citation, Message } from '@/shared/types/chat';
-import { memo } from 'react';
+import { Check, Copy, Pencil, X } from 'lucide-react';
+import { memo, useEffect, useState } from 'react';
 
 interface MessageBubbleProps {
   message: Message;
@@ -103,7 +104,17 @@ function renderCitations(citations: Citation[] | undefined) {
   );
 }
 
-function MessageBubble({ message, onCopy }: MessageBubbleProps) {
+function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
+  const [hovered, setHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(message.content);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(message.content);
+    }
+  }, [isEditing, message.content]);
+
   function renderWithInteractiveSources(
     text: string,
     citations: Citation[] | undefined,
@@ -254,7 +265,10 @@ function MessageBubble({ message, onCopy }: MessageBubbleProps) {
                       type="button"
                       aria-label="Edit message"
                       title="Edit"
-                      onClick={() => setIsEditing(true)}
+                      onClick={() => {
+                        setEditValue(message.content);
+                        setIsEditing(true);
+                      }}
                       className="
                         w-7 h-7 rounded-full flex items-center justify-center
                         bg-transparent border-none text-muted-foreground
