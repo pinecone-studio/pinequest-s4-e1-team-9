@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from '../config/env.js';
+import { handleChatHistoryRoute } from '../routes/chat-history.route.js';
 import { handleChatRoute } from '../routes/chat.route.js';
 import { handleDocumentPdfUrlRoute } from '../routes/document.route.js';
 import { handleHealthRoute } from '../routes/health.route.js';
@@ -24,6 +25,7 @@ const routeHandlers: RouteHandler[] = [
   handleHealthRoute,
   handleDocumentPdfUrlRoute,
   handleUploadRoute,
+  handleChatHistoryRoute,
   handleChatRoute,
 ];
 

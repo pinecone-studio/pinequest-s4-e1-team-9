@@ -9,6 +9,8 @@ interface HistoryChatProps {
   activeId: string | null;
   expanded: boolean;
   searchQuery: string;
+  loading?: boolean;
+  error?: string | null;
   onSearchChange: (q: string) => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
@@ -191,6 +193,8 @@ function HistoryChat({
   activeId,
   expanded,
   searchQuery,
+  loading = false,
+  error = null,
   onSearchChange,
   onSelect,
   onDelete,
@@ -267,8 +271,18 @@ function HistoryChat({
 
       <div className="flex-1 overflow-y-auto px-1 [scrollbar-width:thin] [scrollbar-color:var(--muted)_transparent]">
         {grouped.length === 0 && (
-          <p className="text-[12px] text-muted-foreground text-center mt-6 font-['Inter']">
-            {searchQuery ? 'No matching chats' : 'No history yet'}
+          <p className="text-[12px] text-muted-foreground text-center mt-6 font-['DM_Sans']">
+            {loading
+              ? 'Loading chats...'
+              : searchQuery
+                ? 'No matching chats'
+                : 'No history yet'}
+          </p>
+        )}
+
+        {error && !loading && (
+          <p className="text-[12px] text-destructive text-center mt-3 px-2 font-['DM_Sans']">
+            {error}
           </p>
         )}
 

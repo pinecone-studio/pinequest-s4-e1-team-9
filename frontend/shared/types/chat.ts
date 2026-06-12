@@ -25,7 +25,29 @@ export type ChatApiMessage = {
   content: string;
 };
 
+export type ChatConversationApi = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  latestMessagePreview: string;
+  document?: {
+    id: string;
+    filename: string | null;
+  } | null;
+};
+
+export type ChatHistoryMessageApi = {
+  id: string;
+  role: ChatRole;
+  content: string;
+  createdAt: string;
+  citations?: Citation[];
+};
+
 export type ChatResponse = {
+  conversationId?: string;
+  conversation?: ChatConversationApi | null;
   reply?: string;
   citations?: Citation[];
   retrieval?: {
@@ -34,6 +56,23 @@ export type ChatResponse = {
     contextTruncated: boolean;
   };
   warnings?: string[];
+  error?: string;
+};
+
+export type ChatConversationsResponse = {
+  conversations?: ChatConversationApi[];
+  error?: string;
+};
+
+export type ChatMessagesResponse = {
+  conversationId?: string;
+  messages?: ChatHistoryMessageApi[];
+  error?: string;
+};
+
+export type DeleteConversationResponse = {
+  ok?: boolean;
+  deleted?: number;
   error?: string;
 };
 
@@ -47,5 +86,10 @@ export type Conversation = {
   title: string;
   createdAt: number;
   updatedAt: number;
+  latestMessagePreview?: string;
+  document?: {
+    id: string;
+    filename: string | null;
+  } | null;
   messages: Message[];
 };

@@ -1,13 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { createChatModel } from '../../ai/groq.js';
 import { env } from '../../config/env.js';
+import { DocumentProcessingError } from '../documents/types.js';
 import {
   buildRagContext,
   type RetrievedCitation,
 } from '../retrieval/retriever.service.js';
 import { createRagSystemMessage } from './prompt.js';
-import type { ChatMessage } from './types.js';
+import type { ChatConversationSummary, ChatMessage } from './types.js';
 
 type GenerateChatResponseOptions = {
   userId: string;
@@ -15,6 +17,8 @@ type GenerateChatResponseOptions = {
 };
 
 export type ChatResponseResult = {
+  conversationId: string;
+  conversation: ChatConversationSummary | null;
   reply: string;
   citations: RetrievedCitation[];
   retrieval: {
@@ -75,6 +79,7 @@ function contentToText(content: unknown) {
 }
 
 function createResult(input: {
+  conversationId: string;
   reply: string;
   citations?: RetrievedCitation[];
   sourceCount?: number;
@@ -83,6 +88,8 @@ function createResult(input: {
   warnings?: string[];
 }): ChatResponseResult {
   return {
+    conversationId: input.conversationId,
+    conversation: null,
     reply: input.reply,
     citations: input.citations ?? [],
     retrieval: {
@@ -94,17 +101,31 @@ function createResult(input: {
   };
 }
 
+async function assertConversationBelongsToUser(
+  userId: string,
+  conversationId: string,
+) {
+  const { conversationExistsForUser } =
+    await import('../../db/repositories/chat-messages.repo.js');
+
+  const exists = await conversationExistsForUser(userId, conversationId);
+
+  if (!exists) {
+    throw new DocumentProcessingError('Conversation not found.', 404);
+  }
+}
+
 async function persistChatExchange(input: {
   userId: string;
-  conversationId?: string | null;
+  conversationId: string;
   userMessage: ChatMessage | undefined;
   result: ChatResponseResult;
-}) {
+}): Promise<ChatConversationSummary | null> {
   if (!input.userMessage || input.userMessage.role !== 'user') {
-    return;
+    return null;
   }
 
-  const { createChatMessages } =
+  const { createChatMessages, getConversationSummary } =
     await import('../../db/repositories/chat-messages.repo.js');
 
   await createChatMessages([
@@ -126,16 +147,18 @@ async function persistChatExchange(input: {
       },
     },
   ]);
+
+  return getConversationSummary(input.userId, input.conversationId);
 }
 
 async function persistChatExchangeSafely(input: {
   userId: string;
-  conversationId?: string | null;
+  conversationId: string;
   userMessage: ChatMessage | undefined;
   result: ChatResponseResult;
 }) {
   try {
-    await persistChatExchange(input);
+    input.result.conversation = await persistChatExchange(input);
   } catch (error) {
     input.result.warnings.push('Chat history could not be saved.');
     console.error('Error saving chat messages:', error);
@@ -152,6 +175,12 @@ export async function generateChatResponse(
 
   if (!options.userId.trim()) {
     throw new Error('Chat responses require a user id.');
+  }
+
+  const conversationId = options.conversationId ?? randomUUID();
+
+  if (options.conversationId) {
+    await assertConversationBelongsToUser(options.userId, conversationId);
   }
 
   const budgetedMessages = getBudgetedMessages(messages);
@@ -188,6 +217,7 @@ export async function generateChatResponse(
     ]);
 
     const result = createResult({
+      conversationId,
       reply: contentToText(response.content).trim() || 'No response.',
       citations: ragContext.citations,
       sourceCount: ragContext.sourceCount,
@@ -198,7 +228,7 @@ export async function generateChatResponse(
 
     await persistChatExchangeSafely({
       userId: options.userId,
-      conversationId: options.conversationId,
+      conversationId,
       userMessage: latestMessage,
       result,
     });
@@ -208,6 +238,7 @@ export async function generateChatResponse(
     console.error('Error generating chat response:', error);
     if (error instanceof Error && error.message.includes('429')) {
       const result = createResult({
+        conversationId,
         reply:
           'I am currently experiencing high demand and have exceeded my usage quota. Please try again in a moment.',
         retrievalFailed,
@@ -216,7 +247,7 @@ export async function generateChatResponse(
 
       await persistChatExchangeSafely({
         userId: options.userId,
-        conversationId: options.conversationId,
+        conversationId,
         userMessage: latestMessage,
         result,
       });
