@@ -7,9 +7,43 @@ datasource db {
   provider = "postgresql"
 }
 
+enum CompanyRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Company {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  domain    String?
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  members   CompanyMember[]
+  documents UserDocument[]
+
+  @@map("companies")
+}
+
+model CompanyMember {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String      @map("company_id") @db.Uuid
+  userId    String      @map("user_id") @db.Uuid
+  role      CompanyRole @default(MEMBER)
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([userId])
+  @@index([companyId, role])
+  @@map("company_members")
+}
+
 model UserDocument {
   id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId       String          @map("user_id") @db.Uuid
+  companyId    String?         @map("company_id") @db.Uuid
   filename     String
   fileSize     BigInt?         @map("file_size")
   mimeType     String?         @map("mime_type")
@@ -18,9 +52,11 @@ model UserDocument {
   errorMessage String?         @map("error_message")
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company      Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
   chunks       DocumentChunk[]
 
   @@index([userId])
+  @@index([companyId])
   @@index([userId, status])
   @@unique([id, userId])
   @@map("user_documents")
@@ -29,6 +65,7 @@ model UserDocument {
 model DocumentChunk {
   id         BigInt                 @id @default(autoincrement())
   userId     String                 @map("user_id") @db.Uuid
+  companyId  String?                @map("company_id") @db.Uuid
   documentId String                 @map("document_id") @db.Uuid
   content    String?
   metadata   Json?
@@ -39,6 +76,7 @@ model DocumentChunk {
   document   UserDocument           @relation(fields: [documentId, userId], references: [id, userId], onDelete: Cascade)
 
   @@index([userId])
+  @@index([companyId])
   @@index([documentId])
   @@index([userId, documentId])
   @@map("document_chunks")
