@@ -27,22 +27,31 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
 export async function sendChatMessages(
   messages: Message[],
   conversationId: string,
-) {
+): Promise<ChatResponse> {
   const authHeaders = await getAuthHeaders();
+
   const response = await fetch(clientEnv.chatApiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+    },
     body: JSON.stringify({
-      conversationId,
+      conversationId: conversationId || null,
       messages: toApiMessages(messages),
     }),
   });
 
-  const data = await readJsonResponse<ChatResponse>(response);
+  const rawData = await readJsonResponse<any>(response);
 
   if (!response.ok) {
-    throw new Error(data.error ?? 'Request failed.');
+    throw new Error(rawData?.error ?? 'Request failed.');
   }
 
-  return data;
+  return {
+    reply: rawData.reply || 'Хариулт олдсонгүй.',
+    citations: rawData.citations ?? [],
+    retrieval: rawData.retrieval,
+    warnings: rawData.warnings ?? [],
+  } as ChatResponse;
 }

@@ -1,102 +1,39 @@
 import { createServer } from 'node:http';
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { env } from '../config/env.js';
 import { handleChatRoute } from '../routes/chat.route.js';
+import { handleUploadRoute } from '../routes/upload.route.js';
 import { handleDocumentPdfUrlRoute } from '../routes/document.route.js';
 import { handleHealthRoute } from '../routes/health.route.js';
-import { handleUploadRoute } from '../routes/upload.route.js';
-import { createCorsHeaders, isAllowedCorsOrigin } from './cors.js';
-import { sendJson } from './errors.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export function startHttpServer(port = 4000, host = '0.0.0.0') {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'OPTIONS, GET, POST',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
 
-type RouteHandler = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  headers: Record<string, string>,
-) => Promise<boolean> | boolean;
-
-const routeHandlers: RouteHandler[] = [
-  handleHealthRoute,
-  handleDocumentPdfUrlRoute,
-  handleUploadRoute,
-  handleChatRoute,
-];
-
-export function startHttpServer(port = env.port, host = env.host) {
   const server = createServer(async (req, res) => {
-    const requestOrigin = Array.isArray(req.headers.origin)
-      ? req.headers.origin[0]
-      : req.headers.origin;
-    const corsHeaders = createCorsHeaders(requestOrigin);
-
-    if (!isAllowedCorsOrigin(requestOrigin)) {
-      sendJson(res, 403, { error: 'Origin is not allowed.' }, corsHeaders);
-      return;
-    }
-
     if (req.method === 'OPTIONS') {
       res.writeHead(204, corsHeaders);
       res.end();
       return;
     }
 
-    if (req.url && req.url.startsWith('/uploads/') && req.method === 'GET') {
-      try {
-        const decodedUrl = decodeURIComponent(req.url);
-        const cleanUrl = decodedUrl.split('?')[0].split('#')[0];
-        const relativePath = cleanUrl.replace('/uploads/', '');
+    try {
+      if (await handleHealthRoute(req, res, corsHeaders)) return;
+      if (await handleChatRoute(req, res, corsHeaders)) return;
+      if (await handleUploadRoute(req, res, corsHeaders)) return;
+      if (await handleDocumentPdfUrlRoute(req, res, corsHeaders)) return;
 
-        const filePath = path.resolve(
-          __dirname,
-          '../../../../uploads',
-          relativePath,
-        );
-
-        // 👉 Шалгахын тулд серверийн терминал дээр бодит замыг хэвлэж харна
-        console.log('📂 Серверийн хайж буй туйлын зам:', filePath);
-
-        if (fs.existsSync(filePath)) {
-          res.writeHead(200, {
-            ...corsHeaders,
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': 'inline',
-          });
-
-          const fileStream = fs.createReadStream(filePath);
-          fileStream.pipe(res);
-          return;
-        } else {
-          sendJson(res, 404, { error: 'File not found.' }, corsHeaders);
-          return;
-        }
-      } catch (error) {
-        sendJson(
-          res,
-          500,
-          { error: 'Internal server error while serving file.' },
-          corsHeaders,
-        );
-        return;
-      }
+      res.writeHead(404, corsHeaders);
+      res.end(JSON.stringify({ error: 'Not Found' }));
+    } catch (error) {
+      console.error('Unhandled server error:', error);
+      res.writeHead(500, corsHeaders);
+      res.end(JSON.stringify({ error: 'Internal server error.' }));
     }
-
-    for (const handler of routeHandlers) {
-      if (await handler(req, res, corsHeaders)) {
-        return;
-      }
-    }
-
-    sendJson(res, 404, { error: 'Not found.' }, corsHeaders);
   });
 
   server.listen(port, host, () => {
-    console.log(`Chatbot backend listening on http://${host}:${port}`);
+    console.log(`🚀 Backend listening on http://${host}:${port}`);
   });
-
-  return server;
 }
