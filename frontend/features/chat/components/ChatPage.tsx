@@ -21,6 +21,9 @@ function ChatWorkspace() {
     hasMessages,
     isBusy,
     busyLabel,
+    isHistoryLoading,
+    isConversationLoading,
+    errorMessage,
     composerRef,
     conversations,
     activeId,
@@ -36,18 +39,27 @@ function ChatWorkspace() {
         onNewChat={handleNewChat}
         conversations={conversations}
         activeId={activeId}
+        loading={isHistoryLoading}
+        error={errorMessage}
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative z-10">
         <HeaderActions />
+        {errorMessage && (
+          <div className="mx-auto mt-3 w-full max-w-[720px] px-6">
+            <p className="m-0 border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {errorMessage}
+            </p>
+          </div>
+        )}
 
-        {hasMessages ? (
+        {hasMessages || isConversationLoading ? (
           <ChatArea
             messages={messages}
             loading={isBusy}
-            loadingLabel={busyLabel}
+            loadingLabel={isConversationLoading ? 'Loading chat...' : busyLabel}
             onSend={sendMessage}
             composerRef={composerRef}
             disabled={isBusy}

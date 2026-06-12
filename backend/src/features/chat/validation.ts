@@ -8,8 +8,11 @@ const chatMessageSchema = z.object({
   content: z.string().trim().min(1).max(env.maxChatMessageChars),
 });
 
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const chatRequestSchema = z.object({
-  conversationId: z.string().uuid().nullable().optional(),
+  conversationId: z.string().regex(uuidPattern).nullable().optional(),
   messages: z
     .array(chatMessageSchema)
     .min(1)

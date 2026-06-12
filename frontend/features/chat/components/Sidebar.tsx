@@ -11,6 +11,8 @@ interface SidebarProps {
   onNewChat: () => void;
   conversations: Conversation[];
   activeId: string | null;
+  loading?: boolean;
+  error?: string | null;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
 }
@@ -19,6 +21,8 @@ function Sidebar({
   onNewChat,
   conversations,
   activeId,
+  loading = false,
+  error = null,
   onSelectConversation,
   onDeleteConversation,
 }: SidebarProps) {
@@ -112,6 +116,8 @@ function Sidebar({
           activeId={activeId}
           expanded={expanded}
           searchQuery={searchQuery}
+          loading={loading}
+          error={error}
           onSearchChange={setSearchQuery}
           onSelect={handleSelectConversation}
           onDelete={handleDeleteConversation}

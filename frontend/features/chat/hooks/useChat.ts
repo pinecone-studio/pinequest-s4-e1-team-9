@@ -1,10 +1,15 @@
 'use client';
 
 import { useAuth } from '@/features/auth/AuthProvider';
-import { sendChatMessages } from '@/features/chat/api';
-import { useLocalChatHistory } from '@/features/chat/hooks/useLocalChatHistory';
+import {
+  deleteChatConversation,
+  fetchChatConversations,
+  fetchConversationMessages,
+  isValidConversationId,
+  sendChatMessages,
+} from '@/features/chat/api';
 import { uploadDocument } from '@/features/documents/api';
-import type { Message, SendPayload } from '@/shared/types/chat';
+import type { Conversation, Message, SendPayload } from '@/shared/types/chat';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatComposerHandle } from '../components/ChatComposer';
 
@@ -17,24 +22,27 @@ function createMessage(input: Omit<Message, 'id'>): Message {
   };
 }
 
+function sortConversations(conversations: Conversation[]) {
+  return [...conversations].sort(
+    (left, right) => right.updatedAt - left.updatedAt,
+  );
+}
+
 export function useChat() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [busyState, setBusyState] = useState<BusyState>('idle');
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isConversationLoading, setIsConversationLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
   const messagesRef = useRef<Message[]>([]);
   const activeConversationId = useRef<string | null>(null);
+  const conversationLoadRequest = useRef(0);
 
-  const {
-    conversations,
-    activeId,
-    setActiveId,
-    createConversation,
-    saveMessages,
-    loadConversation,
-    deleteConversation,
-  } = useLocalChatHistory(user?.id ?? 'anonymous');
-  const isBusy = busyState !== 'idle';
+  const isBusy = busyState !== 'idle' || isConversationLoading;
   const busyLabel =
     busyState === 'uploading'
       ? 'Uploading PDF...'
@@ -54,66 +62,171 @@ export function useChat() {
     if (!isBusy) composerRef.current?.focus();
   }, [isBusy]);
 
-  const commitMessages = useCallback(
-    (conversationId: string, nextMessages: Message[]) => {
-      messagesRef.current = nextMessages;
-      setMessages(nextMessages);
-      saveMessages(conversationId, nextMessages);
-    },
-    [saveMessages],
-  );
+  const commitMessages = useCallback((nextMessages: Message[]) => {
+    messagesRef.current = nextMessages;
+    setMessages(nextMessages);
+  }, []);
 
-  const ensureConversation = useCallback(() => {
-    const conversationId = activeConversationId.current ?? createConversation();
-    activeConversationId.current = conversationId;
-    return conversationId;
-  }, [createConversation]);
+  const loadConversations = useCallback(async () => {
+    setIsHistoryLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const nextConversations = await fetchChatConversations();
+      setConversations(nextConversations);
+      return nextConversations;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to load chat history.';
+      setErrorMessage(message);
+      throw error;
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, []);
+
+  const patchConversation = useCallback((conversation: Conversation) => {
+    if (!isValidConversationId(conversation.id)) {
+      return;
+    }
+
+    setConversations((current) =>
+      sortConversations([
+        conversation,
+        ...current.filter((item) => item.id !== conversation.id),
+      ]),
+    );
+  }, []);
+
+  useEffect(() => {
+    conversationLoadRequest.current += 1;
+    activeConversationId.current = null;
+    messagesRef.current = [];
+    setMessages([]);
+    setActiveId(null);
+    setConversations([]);
+    setErrorMessage(null);
+
+    if (!user?.id) {
+      return;
+    }
+
+    void loadConversations().catch(() => undefined);
+  }, [loadConversations, user?.id]);
 
   const handleNewChat = useCallback(() => {
+    conversationLoadRequest.current += 1;
     setMessages([]);
     messagesRef.current = [];
     activeConversationId.current = null;
     setActiveId(null);
+    setErrorMessage(null);
+    setIsConversationLoading(false);
     composerRef.current?.reset();
     composerRef.current?.focus();
-  }, [setActiveId]);
+  }, []);
 
   const handleSelectConversation = useCallback(
-    (id: string) => {
-      const restored = loadConversation(id);
-      messagesRef.current = restored;
-      setMessages(restored);
+    async (id: string) => {
+      if (!isValidConversationId(id)) {
+        setConversations((current) =>
+          current.filter((conversation) => conversation.id !== id),
+        );
+        setErrorMessage('Conversation is no longer available.');
+        return;
+      }
+
+      const requestId = conversationLoadRequest.current + 1;
+      conversationLoadRequest.current = requestId;
+      setErrorMessage(null);
+      setActiveId(id);
       activeConversationId.current = id;
-      composerRef.current?.reset();
-      composerRef.current?.focus();
+      setIsConversationLoading(true);
+
+      try {
+        const restoredMessages = await fetchConversationMessages(id);
+
+        if (conversationLoadRequest.current !== requestId) {
+          return;
+        }
+
+        commitMessages(restoredMessages);
+        composerRef.current?.reset();
+      } catch (error) {
+        if (conversationLoadRequest.current !== requestId) {
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Failed to load conversation.';
+        setErrorMessage(message);
+        setActiveId(null);
+        activeConversationId.current = null;
+        commitMessages([]);
+        void loadConversations().catch(() => undefined);
+      } finally {
+        if (conversationLoadRequest.current === requestId) {
+          setIsConversationLoading(false);
+          composerRef.current?.focus();
+        }
+      }
     },
-    [loadConversation],
+    [commitMessages, loadConversations],
   );
 
   const handleDeleteConversation = useCallback(
-    (id: string) => {
-      deleteConversation(id);
-      if (activeConversationId.current === id) {
-        setMessages([]);
-        messagesRef.current = [];
-        activeConversationId.current = null;
+    async (id: string) => {
+      if (!isValidConversationId(id)) {
+        setConversations((current) =>
+          current.filter((conversation) => conversation.id !== id),
+        );
+
+        if (activeConversationId.current === id) {
+          activeConversationId.current = null;
+          setActiveId(null);
+          commitMessages([]);
+        }
+
+        return;
+      }
+
+      setErrorMessage(null);
+
+      try {
+        await deleteChatConversation(id);
+        setConversations((current) =>
+          current.filter((conversation) => conversation.id !== id),
+        );
+
+        if (activeConversationId.current === id) {
+          conversationLoadRequest.current += 1;
+          activeConversationId.current = null;
+          setActiveId(null);
+          commitMessages([]);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Failed to delete conversation.';
+        setErrorMessage(message);
       }
     },
-    [deleteConversation],
+    [commitMessages],
   );
 
   const appendAssistantMessage = useCallback(
-    (
-      conversationId: string,
-      baseMessages: Message[],
-      message: Omit<Message, 'id' | 'role'>,
-    ) => {
+    (baseMessages: Message[], message: Omit<Message, 'id' | 'role'>) => {
       const assistantMessage = createMessage({
         role: 'assistant',
         ...message,
       });
       const nextMessages = [...baseMessages, assistantMessage];
-      commitMessages(conversationId, nextMessages);
+      commitMessages(nextMessages);
+
+      return nextMessages;
     },
     [commitMessages],
   );
@@ -122,7 +235,8 @@ export function useChat() {
     async ({ text, file }: SendPayload) => {
       if (isBusy) return;
 
-      const conversationId = ensureConversation();
+      setErrorMessage(null);
+      const conversationId = activeConversationId.current;
       const userMessage = createMessage({
         role: 'user',
         content: text,
@@ -130,7 +244,7 @@ export function useChat() {
       });
       const nextMessages = [...messagesRef.current, userMessage];
 
-      commitMessages(conversationId, nextMessages);
+      commitMessages(nextMessages);
 
       try {
         if (file) {
@@ -138,7 +252,7 @@ export function useChat() {
           await uploadDocument(file);
 
           if (!text) {
-            appendAssistantMessage(conversationId, nextMessages, {
+            appendAssistantMessage(nextMessages, {
               content: 'PDF uploaded and indexed. Ready when you are.',
               tone: 'success',
             });
@@ -150,14 +264,32 @@ export function useChat() {
 
         setBusyState('thinking');
         const response = await sendChatMessages(nextMessages, conversationId);
-        appendAssistantMessage(conversationId, nextMessages, {
+        const serverConversationId = response.conversationId ?? conversationId;
+
+        if (serverConversationId) {
+          activeConversationId.current = serverConversationId;
+          setActiveId(serverConversationId);
+        }
+
+        appendAssistantMessage(nextMessages, {
           content: response.reply?.trim() || 'No response.',
           citations: response.citations ?? [],
         });
+
+        if (response.conversation) {
+          patchConversation(response.conversation);
+        } else {
+          void loadConversations().catch(() => undefined);
+        }
+
+        if (response.warnings?.length) {
+          setErrorMessage(response.warnings.join(' '));
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unknown error.';
-        appendAssistantMessage(conversationId, messagesRef.current, {
+        setErrorMessage(message);
+        appendAssistantMessage(messagesRef.current, {
           content:
             file && !text
               ? `Upload failed: ${message}`
@@ -168,7 +300,13 @@ export function useChat() {
         setBusyState('idle');
       }
     },
-    [appendAssistantMessage, commitMessages, ensureConversation, isBusy],
+    [
+      appendAssistantMessage,
+      commitMessages,
+      isBusy,
+      loadConversations,
+      patchConversation,
+    ],
   );
 
   return {
@@ -176,6 +314,9 @@ export function useChat() {
     hasMessages: messages.length > 0,
     isBusy,
     busyLabel,
+    isHistoryLoading,
+    isConversationLoading,
+    errorMessage,
     composerRef,
     conversations,
     activeId,
