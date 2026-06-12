@@ -11,6 +11,7 @@ import type { IngestPdfInput } from './types.js';
 export async function ingestPDF({
   filePath,
   userId,
+  companyId,
   documentId,
   filename,
 }: IngestPdfInput) {
@@ -30,6 +31,7 @@ export async function ingestPDF({
   console.log('Sending vectors to Supabase Vector Store...');
   const result = await storeDocumentChunksWithVectors({
     userId,
+    companyId,
     documentId,
     filename,
     chunks: splitDocs,

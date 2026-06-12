@@ -31,4 +31,8 @@ out/
 # env
 .env
 
+# local uploads
+backend/uploads/
+admin/backend/uploads/
+
 /bun.lock

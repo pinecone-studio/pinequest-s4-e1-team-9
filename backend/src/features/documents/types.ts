@@ -12,6 +12,7 @@ export type UploadedPdfFile = {
 export type IngestPdfInput = {
   filePath: string;
   userId: string;
+  companyId?: string | null;
   documentId: string;
   filename: string;
 };

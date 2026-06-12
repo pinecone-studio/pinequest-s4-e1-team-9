@@ -6,6 +6,7 @@ import { getSupabaseServiceRoleClient } from '../../lib/supabase.js';
 
 type StoreDocumentChunksInput = {
   userId: string;
+  companyId?: string | null;
   documentId: string;
   filename: string;
   chunks: DocumentInterface[];
@@ -14,6 +15,7 @@ type StoreDocumentChunksInput = {
 
 type DocumentChunkInsertRow = {
   user_id: string;
+  company_id: string | null;
   document_id: string;
   content: string;
   metadata: Record<string, unknown>;
@@ -79,6 +81,7 @@ function toMetadataObject(metadata: unknown) {
 
 export async function storeDocumentChunksWithVectors({
   userId,
+  companyId,
   documentId,
   filename,
   chunks,
@@ -96,6 +99,7 @@ export async function storeDocumentChunksWithVectors({
 
     return {
       user_id: userId,
+      company_id: companyId ?? null,
       document_id: documentId,
       content: chunk.pageContent,
       metadata: {
@@ -103,6 +107,7 @@ export async function storeDocumentChunksWithVectors({
         source: filename,
         filename,
         user_id: userId,
+        company_id: companyId ?? null,
         document_id: documentId,
         chunk_index: index,
         page_number: pageNumber,

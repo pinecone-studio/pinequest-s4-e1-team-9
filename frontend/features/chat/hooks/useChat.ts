@@ -313,8 +313,7 @@ export function useChat() {
     async (messageId: string, newContent: string) => {
       if (isBusy) return;
 
-      const conversationId =
-        activeConversationId.current ?? ensureConversation();
+      const conversationId = activeConversationId.current;
       const index = messagesRef.current.findIndex((m) => m.id === messageId);
       if (index === -1) return;
 
@@ -328,19 +327,37 @@ export function useChat() {
         editedMessage,
       ];
 
-      commitMessages(conversationId, nextMessages);
+      commitMessages(nextMessages);
 
       try {
         setBusyState('thinking');
         const response = await sendChatMessages(nextMessages, conversationId);
-        appendAssistantMessage(conversationId, nextMessages, {
+        const serverConversationId = response.conversationId ?? conversationId;
+
+        if (serverConversationId) {
+          activeConversationId.current = serverConversationId;
+          setActiveId(serverConversationId);
+        }
+
+        appendAssistantMessage(nextMessages, {
           content: response.reply?.trim() || 'No response.',
           citations: response.citations ?? [],
         });
+
+        if (response.conversation) {
+          patchConversation(response.conversation);
+        } else {
+          void loadConversations().catch(() => undefined);
+        }
+
+        if (response.warnings?.length) {
+          setErrorMessage(response.warnings.join(' '));
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unknown error.';
-        appendAssistantMessage(conversationId, messagesRef.current, {
+        setErrorMessage(message);
+        appendAssistantMessage(messagesRef.current, {
           content: `Request failed: ${message}`,
           tone: 'error',
         });
@@ -348,7 +365,13 @@ export function useChat() {
         setBusyState('idle');
       }
     },
-    [appendAssistantMessage, commitMessages, ensureConversation, isBusy],
+    [
+      appendAssistantMessage,
+      commitMessages,
+      isBusy,
+      loadConversations,
+      patchConversation,
+    ],
   );
 
   return {
