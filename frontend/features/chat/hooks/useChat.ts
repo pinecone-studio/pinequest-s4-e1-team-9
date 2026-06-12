@@ -171,6 +171,48 @@ export function useChat() {
     [appendAssistantMessage, commitMessages, ensureConversation, isBusy],
   );
 
+  const handleEditMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      if (isBusy) return;
+
+      const conversationId =
+        activeConversationId.current ?? ensureConversation();
+      const index = messagesRef.current.findIndex((m) => m.id === messageId);
+      if (index === -1) return;
+
+      const editedMessage: Message = {
+        ...messagesRef.current[index],
+        content: newContent,
+      };
+
+      const nextMessages = [
+        ...messagesRef.current.slice(0, index),
+        editedMessage,
+      ];
+
+      commitMessages(conversationId, nextMessages);
+
+      try {
+        setBusyState('thinking');
+        const response = await sendChatMessages(nextMessages, conversationId);
+        appendAssistantMessage(conversationId, nextMessages, {
+          content: response.reply?.trim() || 'No response.',
+          citations: response.citations ?? [],
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error.';
+        appendAssistantMessage(conversationId, messagesRef.current, {
+          content: `Request failed: ${message}`,
+          tone: 'error',
+        });
+      } finally {
+        setBusyState('idle');
+      }
+    },
+    [appendAssistantMessage, commitMessages, ensureConversation, isBusy],
+  );
+
   return {
     messages,
     hasMessages: messages.length > 0,
@@ -182,6 +224,7 @@ export function useChat() {
     handleNewChat,
     handleSelectConversation,
     handleDeleteConversation,
+    handleEditMessage,
     sendMessage,
   };
 }

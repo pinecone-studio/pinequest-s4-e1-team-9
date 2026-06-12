@@ -2,7 +2,6 @@
 
 import { LogOut, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
-
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Button } from '@/shared/ui/button';
 
@@ -23,7 +22,7 @@ function IconBtn({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="rounded-none text-muted-foreground transition-colors duration-150"
+      className="rounded-[10px] text-muted-foreground transition-colors duration-150"
       style={
         {
           '--hover-color': isDarkMode ? '#00e5cc' : '#1e3a8a',
@@ -76,7 +75,7 @@ export default function HeaderActions() {
         onClick={() => {
           void signOut();
         }}
-        className="rounded-none text-muted-foreground transition-colors duration-150"
+        className="rounded-[10px] text-muted-foreground transition-colors duration-150"
       >
         <LogOut className="size-5" aria-hidden="true" />
       </Button>

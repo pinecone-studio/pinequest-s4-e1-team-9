@@ -1,11 +1,13 @@
 import MessageActions from '@/features/chat/components/MessageActions';
 import FileAttachmentChip from '@/features/documents/components/FileAttachmentChip';
 import type { Citation, Message } from '@/shared/types/chat';
+import { Check, Copy, Pencil, X } from 'lucide-react';
 import { memo, useState } from 'react';
 
 interface MessageBubbleProps {
   message: Message;
   onCopy?: (content: string) => void;
+  onEdit?: (messageId: string, newContent: string) => void;
 }
 
 function citationTitle(citation: Citation) {
@@ -51,8 +53,11 @@ function renderCitations(
   );
 }
 
-function MessageBubble({ message, onCopy }: MessageBubbleProps) {
+function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(message.content);
+  const [hovered, setHovered] = useState(false);
 
   function handleSourceClick(e: React.MouseEvent, index: number) {
     e.preventDefault();
@@ -101,17 +106,142 @@ function MessageBubble({ message, onCopy }: MessageBubbleProps) {
     });
   }
 
+  function handleSaveEdit() {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== message.content) {
+      onEdit?.(message.id, trimmed);
+    }
+    setIsEditing(false);
+  }
+
+  function handleCancelEdit() {
+    setEditValue(message.content);
+    setIsEditing(false);
+  }
+
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[72%] flex flex-col items-end gap-2">
+      <div
+        className="flex justify-end"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div className="max-w-[72%] flex flex-col items-end gap-1.5">
           {message.attachment && (
             <FileAttachmentChip name={message.attachment.name} />
           )}
+
           {message.content && (
-            <div className="bg-secondary rounded-none border border-border px-[18px] py-2 text-[15px] leading-6 text-secondary-foreground whitespace-pre-wrap break-words font-['JetBrains_Mono']">
-              {renderWithInteractiveSources(message.content, message.citations)}
-            </div>
+            <>
+              {isEditing ? (
+                <div className="w-full flex flex-col gap-2 items-end">
+                  <textarea
+                    autoFocus
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveEdit();
+                      }
+                      if (e.key === 'Escape') {
+                        handleCancelEdit();
+                      }
+                    }}
+                    rows={Math.min(
+                      8,
+                      Math.max(2, editValue.split('\n').length),
+                    )}
+                    className="
+                      w-full bg-secondary rounded-2xl border border-[#00e5cc]/40
+                      px-4 py-3 text-[15px] leading-6 text-secondary-foreground
+                      whitespace-pre-wrap break-words font-['JetBrains_Mono']
+                      outline-none focus:border-[#717976] resize-none
+                      transition-colors duration-150
+                    "
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="
+                        flex items-center gap-1 px-3 py-1.5 rounded-full
+                        bg-transparent border border-border text-muted-foreground
+                        hover:bg-muted hover:text-foreground
+                        text-[13px] font-medium cursor-pointer transition-colors duration-150
+                      "
+                    >
+                      <X size={14} />
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveEdit}
+                      className="
+                        flex items-center gap-1 px-3 py-1.5 rounded-full
+                        bg-[#d3d6d5] text-black border-none
+                        hover:bg-[#929795]
+                        text-[13px] font-medium cursor-pointer transition-colors duration-150
+                      "
+                    >
+                      <Check size={14} />
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="
+                      bg-secondary rounded-2xl px-4 py-2.5 text-[15px] leading-6
+                      text-secondary-foreground whitespace-pre-wrap break-words
+                      font-['JetBrains_Mono'] shadow-sm
+                    "
+                  >
+                    {renderWithInteractiveSources(
+                      message.content,
+                      message.citations,
+                    )}
+                  </div>
+
+                  <div
+                    className={`
+                      flex items-center gap-0.5 transition-opacity duration-150
+                      ${hovered ? 'opacity-100' : 'opacity-0'}
+                    `}
+                  >
+                    <button
+                      type="button"
+                      aria-label="Edit message"
+                      title="Edit"
+                      onClick={() => setIsEditing(true)}
+                      className="
+                        w-7 h-7 rounded-full flex items-center justify-center
+                        bg-transparent border-none text-muted-foreground
+                        hover:bg-muted hover:text-foreground
+                        cursor-pointer transition-colors duration-150
+                      "
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Copy"
+                      title="Copy"
+                      onClick={() => onCopy?.(message.content)}
+                      className="
+                        w-7 h-7 rounded-full flex items-center justify-center
+                        bg-transparent border-none text-muted-foreground
+                        hover:bg-muted hover:text-foreground
+                        cursor-pointer transition-colors duration-150
+                      "
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -178,5 +308,8 @@ function MessageBubble({ message, onCopy }: MessageBubbleProps) {
 
 export default memo(
   MessageBubble,
-  (prev, next) => prev.message === next.message && prev.onCopy === next.onCopy,
+  (prev, next) =>
+    prev.message === next.message &&
+    prev.onCopy === next.onCopy &&
+    prev.onEdit === next.onEdit,
 );

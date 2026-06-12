@@ -27,6 +27,7 @@ function ChatWorkspace() {
     handleNewChat,
     handleSelectConversation,
     handleDeleteConversation,
+    handleEditMessage,
     sendMessage,
   } = useChat();
 
@@ -49,6 +50,7 @@ function ChatWorkspace() {
             loading={isBusy}
             loadingLabel={busyLabel}
             onSend={sendMessage}
+            onEdit={handleEditMessage}
             composerRef={composerRef}
             disabled={isBusy}
           />
