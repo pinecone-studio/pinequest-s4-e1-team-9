@@ -1,9 +1,9 @@
 'use client';
 
-import LoadingDots from '@/features/chat/components/LoadingDots';
 import ChatComposer, {
   ChatComposerHandle,
 } from '@/features/chat/components/ChatComposer';
+import LoadingDots from '@/features/chat/components/LoadingDots';
 import MessageBubble from '@/features/chat/components/MessageBubble';
 import type { Message, SendPayload } from '@/shared/types/chat';
 import { RefObject, useCallback, useEffect, useRef } from 'react';
@@ -13,6 +13,7 @@ interface ChatAreaProps {
   loading: boolean;
   loadingLabel?: string;
   onSend: (payload: SendPayload) => void | Promise<void>;
+  onEdit: (messageId: string, newContent: string) => void;
   composerRef: RefObject<ChatComposerHandle>;
   disabled?: boolean;
 }
@@ -22,6 +23,7 @@ export default function ChatArea({
   loading,
   loadingLabel,
   onSend,
+  onEdit,
   composerRef,
   disabled = false,
 }: ChatAreaProps) {
@@ -54,7 +56,12 @@ export default function ChatArea({
       >
         <div className="max-w-[720px] mx-auto px-6 flex flex-col gap-6">
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} onCopy={handleCopy} />
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onCopy={handleCopy}
+              onEdit={onEdit}
+            />
           ))}
           {loading && <LoadingDots label={loadingLabel} />}
           <div ref={bottomRef} />

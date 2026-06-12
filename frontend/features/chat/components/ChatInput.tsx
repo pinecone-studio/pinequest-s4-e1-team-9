@@ -72,7 +72,7 @@ export default function ChatInput({
     <div
       className="
         bg-input rounded-lg px-3.5 py-2.5
-        border border-transparent focus-within:border-[#00e5cc] focus-within:shadow-[0_0_8px_rgba(0,229,204,0.12)]
+        border border-transparent focus-within:border-[#717976] focus-within:shadow-[0_0_8px_rgba(0,229,204,0.12)]
         transition-all duration-200 ease-in-out cursor-text font-['Inter']
       "
       onClick={() => inputRef.current?.focus()}
@@ -143,15 +143,15 @@ export default function ChatInput({
             disabled={disabled}
             aria-label="Send message"
             className="
-            w-9 h-9 rounded-none flex items-center justify-center shrink-0
+            w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0
             bg-[#161616] border-none text-[#00e5cc]
             hover:opacity-90 active:scale-95
             disabled:opacity-40 disabled:cursor-not-allowed
             cursor-pointer transition-colors duration-150
           "
           >
-            <div className="w-8 h-8 rounded-none bg-[#323232] flex border border-[#00e5cc] items-center justify-center">
-              <ArrowUp size={20} className="text-[#00e5cc]" />
+            <div className="w-8 h-8 bg-[#323232] flex border border-[#717976] items-center justify-center rounded-[10px]">
+              <ArrowUp size={20} className="text-foreground" />
             </div>
           </button>
         )}
