@@ -21,6 +21,9 @@ export const clientEnv = {
   documentsApiUrl:
     process.env.NEXT_PUBLIC_DOCUMENTS_API_URL ||
     `${fallbackApiOrigin}/documents`,
+  adminCompaniesApiUrl:
+    process.env.NEXT_PUBLIC_ADMIN_COMPANIES_API_URL ||
+    `${fallbackApiOrigin}/admin/companies`,
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
   maxChatHistoryMessages: resolvePositiveInteger(

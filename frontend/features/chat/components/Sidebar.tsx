@@ -11,6 +11,8 @@ interface SidebarProps {
   onNewChat: () => void;
   conversations: Conversation[];
   activeId: string | null;
+  loading?: boolean;
+  error?: string | null;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
 }
@@ -19,6 +21,8 @@ function Sidebar({
   onNewChat,
   conversations,
   activeId,
+  loading = false,
+  error = null,
   onSelectConversation,
   onDeleteConversation,
 }: SidebarProps) {
@@ -80,7 +84,7 @@ function Sidebar({
             <GeminiLogo size={26} />
           </span>
           {expanded && (
-            <span className="truncate text-[15px] font-medium text-foreground">
+            <span className="truncate text-[20px] font-medium text-foreground">
               Research Docs
             </span>
           )}
@@ -91,17 +95,18 @@ function Sidebar({
           onClick={handleNewChat}
           aria-label="New chat"
           className={`
-            h-9 w-full rounded-none flex items-center justify-center gap-2 border-none cursor-pointer
-            transition-colors duration-150 mb-2
-            bg-[#00e5cc] text-black hover:bg-[#00d4b8]
-            ${expanded ? 'py-6' : ''}
+            h-9 w-full rounded-[10px] flex items-center justify-start gap-2 border-none cursor-pointer
+            transition-colors duration-150 bg-[#717976]/20 text-black hover:bg-[#717976]/60
+            ${expanded ? 'py-6 px-2' : ''}
           `}
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center text-foreground">
             <Plus size={20} />
           </span>
           {expanded && (
-            <span className="text-[14px] truncate font-medium">New Chat</span>
+            <span className="text-[14px] truncate font-medium text-foreground">
+              New Chat
+            </span>
           )}
         </button>
 
@@ -112,6 +117,8 @@ function Sidebar({
           activeId={activeId}
           expanded={expanded}
           searchQuery={searchQuery}
+          loading={loading}
+          error={error}
           onSearchChange={setSearchQuery}
           onSelect={handleSelectConversation}
           onDelete={handleDeleteConversation}

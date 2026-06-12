@@ -43,3 +43,19 @@ export async function getAuthenticatedUserId(req: IncomingMessage) {
 
   return userId;
 }
+
+export async function getAuthenticatedUser(req: IncomingMessage) {
+  const token = getBearerToken(req);
+  const { data, error } = await getSupabaseAuthClient().auth.getUser(token);
+  const user = data.user;
+
+  if (error || !user) {
+    throw new DocumentProcessingError('Invalid or expired session.', 401);
+  }
+
+  if (!uuidPattern.test(user.id)) {
+    throw new DocumentProcessingError('Invalid authenticated user id.', 401);
+  }
+
+  return user;
+}

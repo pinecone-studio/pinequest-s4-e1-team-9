@@ -3,3 +3,4 @@
 .langgraph_api
 
 /src/generated/prisma
+/uploads

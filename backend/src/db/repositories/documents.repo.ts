@@ -5,6 +5,7 @@ export type UserDocumentStatus = 'processing' | 'ready' | 'error';
 
 type CreateUserDocumentInput = {
   userId: string;
+  companyId?: string | null;
   filename: string;
   fileSize?: bigint | number | null;
   mimeType?: string | null;
@@ -13,6 +14,7 @@ type CreateUserDocumentInput = {
 
 type UpdateUserDocumentInput = {
   filename?: string;
+  companyId?: string | null;
   status?: UserDocumentStatus;
   errorMessage?: string | null;
   storagePath?: string | null;
@@ -20,6 +22,7 @@ type UpdateUserDocumentInput = {
 
 type UserDocumentUpdateData = {
   filename?: string;
+  companyId?: string | null;
   status?: UserDocumentStatus;
   errorMessage?: string | null;
   storagePath?: string | null;
@@ -29,6 +32,7 @@ export const createUserDocument = async (input: CreateUserDocumentInput) => {
   const userDocument = await prisma.userDocument.create({
     data: {
       userId: input.userId,
+      companyId: input.companyId ?? null,
       filename: input.filename.trim(),
       fileSize: input.fileSize == null ? null : BigInt(input.fileSize),
       mimeType: input.mimeType?.trim() || null,
@@ -81,6 +85,10 @@ export const updateUserDocument = async (
     updateData.status = data.status;
   }
 
+  if (Object.prototype.hasOwnProperty.call(data, 'companyId')) {
+    updateData.companyId = data.companyId?.trim() || null;
+  }
+
   if (Object.prototype.hasOwnProperty.call(data, 'errorMessage')) {
     updateData.errorMessage = data.errorMessage?.trim() || null;
   }
@@ -130,6 +138,7 @@ export const serializeUserDocument = (document: UserDocument) => {
   return {
     id: document.id,
     filename: document.filename,
+    companyId: document.companyId,
     fileSize: document.fileSize?.toString() ?? null,
     mimeType: document.mimeType,
     status: document.status,

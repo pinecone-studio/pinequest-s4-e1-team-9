@@ -8,7 +8,7 @@ export function createCorsHeaders(requestOrigin?: string) {
 
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     Vary: 'Origin',
   };

@@ -13,8 +13,8 @@ export default function FileAttachmentChip({
     <div
       className="
         inline-flex items-center gap-2
-        h-20 min-w-[12rem]
-        bg-secondary border border-border rounded-none px-3 py-2
+        h-12 min-w-[12rem]
+        bg-secondary border border-border rounded-[10px] px-3 py-2
         text-foreground text-sm
       "
     >
