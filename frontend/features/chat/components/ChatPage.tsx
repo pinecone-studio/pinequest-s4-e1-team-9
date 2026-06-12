@@ -30,6 +30,7 @@ function ChatWorkspace() {
     handleNewChat,
     handleSelectConversation,
     handleDeleteConversation,
+    handleEditMessage,
     sendMessage,
   } = useChat();
 
@@ -61,6 +62,7 @@ function ChatWorkspace() {
             loading={isBusy}
             loadingLabel={isConversationLoading ? 'Loading chat...' : busyLabel}
             onSend={sendMessage}
+            onEdit={handleEditMessage}
             composerRef={composerRef}
             disabled={isBusy}
           />
