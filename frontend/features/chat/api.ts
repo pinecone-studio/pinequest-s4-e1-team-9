@@ -73,94 +73,32 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
 
 export async function sendChatMessages(
   messages: Message[],
-  conversationId: string | null,
-) {
+  conversationId: string,
+): Promise<ChatResponse> {
   const authHeaders = await getAuthHeaders();
+
   const response = await fetch(clientEnv.chatApiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+    },
     body: JSON.stringify({
-      conversationId,
+      conversationId: conversationId || null,
       messages: toApiMessages(messages),
     }),
   });
 
-  const data = await readJsonResponse<ChatResponse>(response);
+  const rawData = await readJsonResponse<any>(response);
 
   if (!response.ok) {
-    throw new Error(data.error ?? 'Request failed.');
+    throw new Error(rawData?.error ?? 'Request failed.');
   }
 
   return {
-    ...data,
-    conversation: data.conversation
-      ? (toConversation(data.conversation) ?? undefined)
-      : undefined,
-  };
-}
-
-export async function fetchChatConversations() {
-  const authHeaders = await getAuthHeaders();
-  const response = await fetch(`${chatApiBaseUrl}/conversations`, {
-    method: 'GET',
-    headers: authHeaders,
-  });
-
-  const data = await readJsonResponse<ChatConversationsResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(data.error ?? 'Failed to load chat history.');
-  }
-
-  return (data.conversations ?? []).flatMap((conversation) => {
-    const mappedConversation = toConversation(conversation);
-
-    return mappedConversation ? [mappedConversation] : [];
-  });
-}
-
-export async function fetchConversationMessages(conversationId: string) {
-  if (!isValidConversationId(conversationId)) {
-    throw new Error('Invalid conversation id.');
-  }
-
-  const authHeaders = await getAuthHeaders();
-  const response = await fetch(
-    `${chatApiBaseUrl}/conversations/${encodeURIComponent(conversationId)}/messages`,
-    {
-      method: 'GET',
-      headers: authHeaders,
-    },
-  );
-
-  const data = await readJsonResponse<ChatMessagesResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(data.error ?? 'Failed to load conversation.');
-  }
-
-  return (data.messages ?? []).map(toMessage);
-}
-
-export async function deleteChatConversation(conversationId: string) {
-  if (!isValidConversationId(conversationId)) {
-    throw new Error('Invalid conversation id.');
-  }
-
-  const authHeaders = await getAuthHeaders();
-  const response = await fetch(
-    `${chatApiBaseUrl}/conversations/${encodeURIComponent(conversationId)}`,
-    {
-      method: 'DELETE',
-      headers: authHeaders,
-    },
-  );
-
-  const data = await readJsonResponse<DeleteConversationResponse>(response);
-
-  if (!response.ok) {
-    throw new Error(data.error ?? 'Failed to delete conversation.');
-  }
-
-  return data;
+    reply: rawData.reply || 'Хариулт олдсонгүй.',
+    citations: rawData.citations ?? [],
+    retrieval: rawData.retrieval,
+    warnings: rawData.warnings ?? [],
+  } as ChatResponse;
 }

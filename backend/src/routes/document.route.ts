@@ -10,7 +10,6 @@ const uuidPattern =
 
 function getDocumentIdFromPath(pathname: string) {
   const documentId = documentPdfUrlPathPattern.exec(pathname)?.[1];
-
   return documentId ? decodeURIComponent(documentId) : null;
 }
 
@@ -33,9 +32,7 @@ export async function handleDocumentPdfUrlRoute(
     }
 
     const userId = await getAuthenticatedUserId(req);
-    const { getUserDocument } = await import(
-      '../db/repositories/documents.repo.js'
-    );
+    const { getUserDocument } = await import('../db/repositories/documents.repo.js');
     const document = await getUserDocument(userId, documentId);
 
     if (!document) {
@@ -43,23 +40,14 @@ export async function handleDocumentPdfUrlRoute(
     }
 
     if (!document.storagePath) {
-      throw new DocumentProcessingError(
-        'The original PDF is not available for this document.',
-        404,
-      );
+      throw new DocumentProcessingError('The original PDF is not available for this document.', 404);
     }
 
     const signedUrl = await createDocumentPdfSignedUrl(document.storagePath);
-
     sendJson(res, 200, signedUrl, headers);
   } catch (error) {
-    const statusCode =
-      error instanceof DocumentProcessingError ? error.statusCode : 500;
-    const clientMessage =
-      error instanceof DocumentProcessingError
-        ? error.message
-        : 'Failed to create PDF link.';
-
+    const statusCode = error instanceof DocumentProcessingError ? error.statusCode : 500;
+    const clientMessage = error instanceof DocumentProcessingError ? error.message : 'Failed to create PDF link.';
     console.error('Document PDF URL route failure:', error);
     sendJson(res, statusCode, { error: clientMessage }, headers);
   }

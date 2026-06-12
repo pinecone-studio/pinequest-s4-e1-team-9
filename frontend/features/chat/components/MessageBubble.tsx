@@ -1,8 +1,8 @@
 import MessageActions from '@/features/chat/components/MessageActions';
+import { getDocumentPdfSignedUrl } from '@/features/documents/api';
 import FileAttachmentChip from '@/features/documents/components/FileAttachmentChip';
 import type { Citation, Message } from '@/shared/types/chat';
-import { Check, Copy, Pencil, X } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo } from 'react';
 
 interface MessageBubbleProps {
   message: Message;
@@ -20,53 +20,90 @@ function citationTitle(citation: Citation) {
     .join(' - ');
 }
 
-function renderCitations(
-  citations: Citation[] | undefined,
-  onOpenModal: (c: Citation) => void,
-) {
+function withPdfPageFragment(signedUrl: string, pageNumber: number | null) {
+  if (!pageNumber) return signedUrl;
+
+  try {
+    const url = new URL(signedUrl);
+    url.hash = `page=${pageNumber}`;
+    return url.toString();
+  } catch {
+    return `${signedUrl}#page=${pageNumber}`;
+  }
+}
+
+async function openCitationPdf(citation: Citation) {
+  if (!citation.documentId) {
+    window.alert('This source is missing its document id.');
+    return;
+  }
+
+  const pdfWindow = window.open('about:blank', '_blank');
+
+  try {
+    if (pdfWindow) {
+      pdfWindow.opener = null;
+      pdfWindow.document.title = citation.filename || 'PDF source';
+      pdfWindow.document.body.textContent = 'Opening PDF...';
+    }
+
+    const { signedUrl } = await getDocumentPdfSignedUrl(citation.documentId);
+
+    if (!signedUrl) {
+      throw new Error('Failed to create PDF link.');
+    }
+
+    const pdfUrl = withPdfPageFragment(signedUrl, citation.pageNumber);
+
+    if (pdfWindow) {
+      pdfWindow.location.href = pdfUrl;
+    } else {
+      window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+    }
+  } catch (error) {
+    pdfWindow?.close();
+    const message =
+      error instanceof Error ? error.message : 'Failed to open PDF source.';
+    window.alert(message);
+  }
+}
+
+function renderCitations(citations: Citation[] | undefined) {
   if (!citations?.length) return null;
 
   return (
     <div className="mt-3 flex flex-col gap-2">
-      {citations.map((citation, index) => (
-        <div
-          key={`${citation.sourceId}-${citation.chunkId ?? citation.chunkIndex ?? index}`}
-          className="
-            border-l border-[#00e5cc]/60 pl-3
-            text-[12px] leading-5 text-muted-foreground
-            font-['JetBrains_Mono'] cursor-pointer hover:bg-secondary/20 py-1 pr-2 transition-colors
-          "
-          onClick={() => onOpenModal(citation)}
-          title="Эх сурвалжийн бүтэн текстийг харах"
-        >
-          <div className="text-[#00e5cc] break-words font-bold">
-            {citationTitle(citation)} 🔍
-          </div>
-          {citation.preview && (
-            <p className="m-0 mt-1 break-words line-clamp-2 text-muted-foreground/80">
-              {citation.preview}
-            </p>
-          )}
-        </div>
-      ))}
+      {citations.map((citation, index) => {
+        return (
+          <button
+            key={`${citation.sourceId}-${citation.chunkId ?? citation.chunkIndex ?? index}`}
+            type="button"
+            onClick={() => {
+              void openCitationPdf(citation);
+            }}
+            className="
+              border-l border-[#00e5cc]/60 pl-3 block w-full text-left no-underline
+              text-[12px] leading-5 text-muted-foreground
+              font-['JetBrains_Mono'] hover:bg-secondary/20 py-1 pr-2 transition-colors
+            "
+            title="Supabase Storage-оос бодит PDF хуудсыг шинэ таб дээр нээх"
+          >
+            <div className="text-[#00e5cc] break-words font-bold">
+              {citationTitle(citation)} 📄
+            </div>
+            {citation.preview && (
+              <p className="m-0 mt-1 break-words line-clamp-2 text-muted-foreground/80">
+                {citation.preview}
+              </p>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
-  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(message.content);
-  const [hovered, setHovered] = useState(false);
-
-  function handleSourceClick(e: React.MouseEvent, index: number) {
-    e.preventDefault();
-    const citation = message.citations?.[index];
-    if (citation) {
-      setActiveCitation(citation);
-    }
-  }
-
+function MessageBubble({ message, onCopy }: MessageBubbleProps) {
   function renderWithInteractiveSources(
     text: string,
     citations: Citation[] | undefined,
@@ -84,14 +121,17 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
 
         if (citation) {
           return (
-            <span
+            <button
               key={index}
-              onClick={(e) => handleSourceClick(e, sourceIndex)}
-              className="text-[#00e5cc] hover:underline font-bold mx-0.5 cursor-pointer underline-offset-4 bg-[#00e5cc]/10 px-1 rounded"
-              title={`${citation.filename} - Хуудас ${citation.pageNumber || 'Нэг хэсэг'}`}
+              type="button"
+              onClick={() => {
+                void openCitationPdf(citation);
+              }}
+              className="text-[#00e5cc] hover:underline font-bold mx-0.5 underline-offset-4 bg-[#00e5cc]/10 px-1 rounded inline-block"
+              title={`${citation.filename}`}
             >
               {part}
-            </span>
+            </button>
           );
         }
 
@@ -260,48 +300,9 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
         {renderWithInteractiveSources(message.content, message.citations)}
       </div>
 
-      {renderCitations(message.citations, (c) => setActiveCitation(c))}
+      {renderCitations(message.citations)}
 
       <MessageActions onCopy={() => onCopy?.(message.content)} />
-
-      {activeCitation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-background border border-border max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl font-['JetBrains_Mono'] animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/30">
-              <div className="flex flex-col">
-                <span className="text-[12px] text-[#00e5cc] font-bold uppercase tracking-wider">
-                  Ишлэл авсан хуудасны хэсэг
-                </span>
-                <span className="text-[14px] font-medium text-foreground truncate max-w-md mt-0.5">
-                  {activeCitation.filename}{' '}
-                  {activeCitation.pageNumber
-                    ? `(Хуудас ${activeCitation.pageNumber})`
-                    : ''}
-                </span>
-              </div>
-              <button
-                onClick={() => setActiveCitation(null)}
-                className="text-muted-foreground hover:text-foreground text-xl p-1 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto text-[14px] leading-6 text-foreground/90 whitespace-pre-wrap select-text bg-card/50 selection:bg-[#00e5cc]/30">
-              {activeCitation.preview || 'Энэ хэсэгт текст олдсонгүй.'}
-            </div>
-
-            <div className="flex justify-end p-3 border-t border-border bg-secondary/10">
-              <button
-                onClick={() => setActiveCitation(null)}
-                className="px-4 py-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 text-[13px] font-medium transition-all"
-              >
-                Хаах
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

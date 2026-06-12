@@ -1,6 +1,6 @@
 const fallbackApiOrigin =
   process.env.NODE_ENV === 'development'
-    ? 'http://localhost:4000'
+    ? 'http://127.0.0.1:4000'
     : 'https://pinequest-s4-e1-team-9.onrender.com';
 
 function resolvePositiveInteger(value: string | undefined, fallback: number) {
