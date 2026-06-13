@@ -14,7 +14,7 @@ interface ChatAreaProps {
   loadingLabel?: string;
   onSend: (payload: SendPayload) => void | Promise<void>;
   onEdit: (messageId: string, newContent: string) => void;
-  composerRef: RefObject<ChatComposerHandle>;
+  composerRef: RefObject<ChatComposerHandle | null>;
   disabled?: boolean;
 }
 

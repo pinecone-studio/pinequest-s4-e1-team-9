@@ -205,12 +205,36 @@ export const listUserConversations = async (
   userId: string,
   limit = 100,
 ): Promise<ChatConversationSummary[]> => {
-  const messages = await prisma.chatMessage.findMany({
+  // Get the most recent conversations for the user
+  const recentGroups = await prisma.chatMessage.groupBy({
+    by: ['conversationId'],
     where: {
       userId,
-      conversationId: {
-        not: null,
+      conversationId: { not: null },
+    },
+    _max: {
+      createdAt: true,
+    },
+    orderBy: {
+      _max: {
+        createdAt: 'desc',
       },
+    },
+    take: limit,
+  });
+
+  const ids = recentGroups
+    .map((g) => g.conversationId)
+    .filter((id): id is string => id !== null);
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  // Fetch messages for these specific conversations only
+  const messages = await prisma.chatMessage.findMany({
+    where: {
+      conversationId: { in: ids },
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -231,8 +255,11 @@ export const listUserConversations = async (
     }
   }
 
-  return [...groupedMessages.entries()]
-    .flatMap(([conversationId, conversationMessages]) => {
+  return ids
+    .flatMap((conversationId) => {
+      const conversationMessages = groupedMessages.get(conversationId);
+      if (!conversationMessages) return [];
+
       const summary = summarizeConversation(
         conversationId,
         conversationMessages,
@@ -244,8 +271,7 @@ export const listUserConversations = async (
       (left, right) =>
         new Date(right.updatedAt).getTime() -
         new Date(left.updatedAt).getTime(),
-    )
-    .slice(0, limit);
+    );
 };
 
 export const deleteConversationMessages = async (

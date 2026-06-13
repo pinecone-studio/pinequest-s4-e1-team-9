@@ -98,7 +98,16 @@ export function useChat() {
     );
   }, []);
 
+  const lastUserId = useRef<string | null>(null);
+
   useEffect(() => {
+    const userId = user?.id ?? null;
+
+    if (userId === lastUserId.current) {
+      return;
+    }
+
+    lastUserId.current = userId;
     conversationLoadRequest.current += 1;
     activeConversationId.current = null;
     messagesRef.current = [];
@@ -107,7 +116,7 @@ export function useChat() {
     setConversations([]);
     setErrorMessage(null);
 
-    if (!user?.id) {
+    if (!userId) {
       return;
     }
 
