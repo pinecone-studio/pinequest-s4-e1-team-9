@@ -17,10 +17,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConnecting, setShowConnecting] = useState(false);
+  const [showContinueButton, setShowContinueButton] = useState(true);
 
   useEffect(() => {
     if (!session) {
       setShowConnecting(false);
+      setShowContinueButton(true);
     }
   }, [session]);
 
@@ -33,7 +35,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (session && showConnecting) {
-    return <ConnectingScreen onContinue={() => setShowConnecting(false)} />;
+    return (
+      <ConnectingScreen
+        showContinueButton={showContinueButton}
+        onContinue={() => setShowConnecting(false)}
+      />
+    );
   }
 
   if (session) return children;
@@ -45,9 +52,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     try {
       if (mode === 'sign-in') {
         await signIn(email, password);
+        setShowContinueButton(false);
         setShowConnecting(true);
       } else {
         await signUp(email, password);
+        setShowContinueButton(true);
         setShowConnecting(true);
         setStatus('Check your email to confirm your account.');
       }
