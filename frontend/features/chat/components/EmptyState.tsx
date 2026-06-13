@@ -8,7 +8,7 @@ import { RefObject } from 'react';
 
 interface EmptyStateProps {
   onSend: (payload: SendPayload) => void | Promise<void>;
-  composerRef: RefObject<ChatComposerHandle | null>;
+  composerRef: RefObject<ChatComposerHandle>;
   disabled?: boolean;
 }
 

@@ -1,19 +1,12 @@
-export type CompanyRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+import type {
+  Company as CompanyBase,
+  CompanyRole as CompanyRoleBase,
+  CreateCompanyInput as CreateCompanyInputBase,
+} from '@/features/companies/types';
 
-export type Company = {
-  id: string;
-  name: string;
-  domain: string | null;
-  invitationCode: string;
-  createdAt: string;
-  updatedAt: string;
-  role: CompanyRole;
-};
-
-export type CreateCompanyInput = {
-  name: string;
-  domain?: string;
-};
+export type CompanyRole = CompanyRoleBase;
+export type Company = CompanyBase;
+export type CreateCompanyInput = CreateCompanyInputBase;
 
 export type AdminUploadResponse = {
   ok?: boolean;

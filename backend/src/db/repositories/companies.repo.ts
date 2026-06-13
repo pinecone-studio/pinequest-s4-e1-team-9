@@ -146,13 +146,29 @@ export async function listCompanyMembers(companyId: string) {
   return members.map(serializeMember);
 }
 
-export async function joinCompanyByCode(userId: string, invitationCode: string) {
+export async function joinCompanyByCode(
+  userId: string,
+  invitationCode: string,
+) {
   const company = await prisma.company.findUnique({
-    where: { invitationCode },
+    where: { invitationCode: invitationCode.trim().toUpperCase() },
   });
 
   if (!company) {
     throw new Error('Invalid invitation code.');
+  }
+
+  const existingMember = await prisma.companyMember.findUnique({
+    where: {
+      companyId_userId: {
+        companyId: company.id,
+        userId,
+      },
+    },
+  });
+
+  if (existingMember) {
+    return serializeMember(existingMember);
   }
 
   const member = await prisma.companyMember.create({

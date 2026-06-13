@@ -1,99 +1,149 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Building2, FileText, RefreshCw } from 'lucide-react';
 import { useAdminCompanies } from '@/features/admin/hooks/useAdminCompanies';
 import { cn } from '@/shared/lib/utils';
+import { Button } from '@/shared/ui/button';
 import AdminCompaniesPanel from './AdminCompaniesPanel';
 import AdminDocumentPanel from './AdminDocumentPanel';
 import AdminGate from './AdminGate';
 
-type AdminTab = 'pdf' | 'company';
+type AdminTab = 'company' | 'documents';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<AdminTab>('pdf');
+  const [activeTab, setActiveTab] = useState<AdminTab>('company');
   const companiesState = useAdminCompanies();
   const selectedCompany = companiesState.companies.find(
     (company) => company.id === companiesState.selectedCompanyId,
   );
+  const hasCompanies = companiesState.companies.length > 0;
 
   useEffect(() => {
     void companiesState.fetchCompanies();
   }, [companiesState.fetchCompanies]);
 
+  useEffect(() => {
+    if (!companiesState.isFetchingCompanies && !hasCompanies) {
+      setActiveTab('company');
+    }
+  }, [companiesState.isFetchingCompanies, hasCompanies]);
+
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-12 text-center">
-          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
-            Admin Dashboard
-          </h1>
-          <p className="mt-4 text-lg text-gray-600">
-            Manage your companies and documents.
-          </p>
-        </div>
+    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <header className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-normal">
+              Admin Dashboard
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Create companies, copy invite codes, and upload company PDFs.
+            </p>
+          </div>
 
-        <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-xl">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Company
-          </label>
-          {companiesState.companies.length > 0 ? (
-            <select
-              value={companiesState.selectedCompanyId ?? ''}
-              onChange={(event) =>
-                companiesState.setSelectedCompanyId(event.target.value || null)
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
+          <div
+            className="flex w-full rounded-lg border border-border bg-sidebar p-1 md:w-auto"
+            role="tablist"
+            aria-label="Admin sections"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'company'}
+              onClick={() => setActiveTab('company')}
+              className={cn(
+                'flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors md:flex-none',
+                activeTab === 'company'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
             >
-              {companiesState.companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name} ({company.role})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
-              <AlertCircle className="mt-0.5 h-4 w-4" />
-              Create a company before managing documents.
-            </div>
-          )}
-        </div>
+              <Building2 className="size-4" aria-hidden="true" />
+              Companies
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'documents'}
+              onClick={() => setActiveTab('documents')}
+              disabled={!hasCompanies}
+              className={cn(
+                'flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:flex-none',
+                activeTab === 'documents'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <FileText className="size-4" aria-hidden="true" />
+              Documents
+            </button>
+          </div>
+        </header>
 
-        <div className="mb-8 flex justify-center space-x-4">
-          <button
-            type="button"
-            onClick={() => setActiveTab('pdf')}
-            className={cn(
-              'rounded-full px-6 py-2 text-sm font-medium transition-all',
-              activeTab === 'pdf'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-white text-gray-600 hover:bg-gray-100',
+        <section className="flex flex-col gap-3 rounded-lg border border-border bg-sidebar p-4 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0 flex-1">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-normal text-muted-foreground">
+              Active company
+            </label>
+            {hasCompanies ? (
+              <select
+                value={companiesState.selectedCompanyId ?? ''}
+                onChange={(event) =>
+                  companiesState.setSelectedCompanyId(
+                    event.target.value || null,
+                  )
+                }
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50"
+              >
+                {companiesState.companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name} ({company.role})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="flex min-h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground">
+                <AlertCircle className="size-4" aria-hidden="true" />
+                No companies yet.
+              </div>
             )}
-          >
-            PDF Extractor
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('company')}
-            className={cn(
-              'rounded-full px-6 py-2 text-sm font-medium transition-all',
-              activeTab === 'company'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-white text-gray-600 hover:bg-gray-100',
-            )}
-          >
-            Company Management
-          </button>
-        </div>
+          </div>
 
-        {activeTab === 'pdf' ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void companiesState.fetchCompanies();
+            }}
+            disabled={companiesState.isFetchingCompanies}
+            className="w-full md:w-auto"
+          >
+            <RefreshCw
+              className={cn(
+                'size-4',
+                companiesState.isFetchingCompanies && 'animate-spin',
+              )}
+              aria-hidden="true"
+            />
+            Refresh
+          </Button>
+        </section>
+
+        {companiesState.companyError && (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {companiesState.companyError}
+          </p>
+        )}
+
+        {activeTab === 'documents' ? (
           selectedCompany ? (
             <AdminGate companyId={selectedCompany.id}>
               <AdminDocumentPanel company={selectedCompany} />
             </AdminGate>
           ) : (
-            <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-gray-600 shadow-xl">
-              Create a company first.
+            <div className="rounded-lg border border-border bg-sidebar p-6 text-sm text-muted-foreground">
+              Create a company before uploading documents.
             </div>
           )
         ) : (

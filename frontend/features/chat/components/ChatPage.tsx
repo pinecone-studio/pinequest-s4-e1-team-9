@@ -1,51 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import AuthGate from '@/features/auth/AuthGate';
 import ChatArea from '@/features/chat/components/ChatArea';
 import EmptyState from '@/features/chat/components/EmptyState';
 import HeaderActions from '@/features/chat/components/HeaderActions';
 import Sidebar from '@/features/chat/components/Sidebar';
 import { useChat } from '@/features/chat/hooks/useChat';
-import JoinCompany from '@/features/companies/components/JoinCompany';
-import { getAuthHeaders } from '@/features/auth/supabase';
 
 export default function ChatPage() {
   return (
     <AuthGate>
-      <MembershipGate>
-        <ChatWorkspace />
-      </MembershipGate>
+      <ChatWorkspace />
     </AuthGate>
   );
-}
-
-function MembershipGate({ children }: { children: React.ReactNode }) {
-  const [hasMembership, setHasMembership] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    async function checkMembership() {
-      const headers = await getAuthHeaders();
-      const response = await fetch('/api/companies', { headers });
-      const companies = await response.json();
-      setHasMembership(Array.isArray(companies) && companies.length > 0);
-    }
-    checkMembership();
-  }, []);
-
-  if (hasMembership === null) {
-    return <div className="grid h-screen place-items-center">Loading...</div>;
-  }
-
-  if (!hasMembership) {
-    return (
-      <div className="grid h-screen place-items-center bg-gray-50">
-        <JoinCompany />
-      </div>
-    );
-  }
-
-  return <>{children}</>;
 }
 
 function ChatWorkspace() {
