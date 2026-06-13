@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Eye, EyeOff, LogIn, UserPlus, User, Mail, Lock } from 'lucide-react';
 import { useAuth } from '@/features/auth/AuthProvider';
+import ConnectingScreen from '@/features/auth/components/ConnectingScreen';
 
 type AuthMode = 'sign-in' | 'sign-up';
 
@@ -15,6 +16,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConnecting, setShowConnecting] = useState(false);
+
+  useEffect(() => {
+    if (!session) {
+      setShowConnecting(false);
+    }
+  }, [session]);
 
   if (isLoading) {
     return (
@@ -22,6 +30,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         Loading session...
       </div>
     );
+  }
+
+  if (session && showConnecting) {
+    return <ConnectingScreen onContinue={() => setShowConnecting(false)} />;
   }
 
   if (session) return children;
@@ -33,8 +45,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     try {
       if (mode === 'sign-in') {
         await signIn(email, password);
+        setShowConnecting(true);
       } else {
         await signUp(email, password);
+        setShowConnecting(true);
         setStatus('Check your email to confirm your account.');
       }
     } catch (err: unknown) {
