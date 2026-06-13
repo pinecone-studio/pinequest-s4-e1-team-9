@@ -1,6 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  LoaderCircle,
+  LockKeyhole,
+} from 'lucide-react';
 
 const MESSAGES = [
   'Opening your company workspace...',
@@ -13,11 +19,11 @@ const MESSAGES = [
 const STEP_DURATION = 800;
 
 interface ConnectingScreenProps {
-  onComplete?: () => void;
+  onContinue?: () => void;
 }
 
 export default function ConnectingScreen({
-  onComplete,
+  onContinue,
 }: ConnectingScreenProps) {
   const [messageIndex, setMessageIndex] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -31,8 +37,6 @@ export default function ConnectingScreen({
         const next = prev + 1;
         if (next >= MESSAGES.length) {
           clearInterval(interval);
-
-          setTimeout(() => onComplete?.(), 600);
         }
         return Math.min(next, MESSAGES.length - 1);
       });
@@ -42,7 +46,7 @@ export default function ConnectingScreen({
       clearTimeout(kickoff);
       clearInterval(interval);
     };
-  }, [onComplete]);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#131313] text-[#e5e2e1] antialiased">
@@ -56,19 +60,11 @@ export default function ConnectingScreen({
             <div className="absolute inset-0 border border-[#444748] rounded-full animate-pulse" />
 
             <div className="absolute inset-2 border border-[#353534] rounded-full bg-[#1c1b1b] flex items-center justify-center">
-              <svg
-                className="w-10 h-10 text-white"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
-                />
-              </svg>
+              {isDone ? (
+                <CheckCircle2 className="w-10 h-10 text-white" />
+              ) : (
+                <LockKeyhole className="w-10 h-10 text-white" />
+              )}
             </div>
           </div>
 
@@ -91,19 +87,11 @@ export default function ConnectingScreen({
 
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              <svg
-                className={`w-4 h-4 text-white ${isDone ? '' : 'animate-spin'}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
-                />
-              </svg>
+              {isDone ? (
+                <CheckCircle2 className="w-4 h-4 text-white" />
+              ) : (
+                <LoaderCircle className="w-4 h-4 text-white animate-spin" />
+              )}
               <span
                 className={`text-[12px] leading-[16px] tracking-[0.05em] font-mono font-medium text-[#c4c7c8] transition-opacity duration-300 ${
                   isDone ? 'text-white opacity-100' : 'opacity-70'
@@ -116,6 +104,17 @@ export default function ConnectingScreen({
               AES-256
             </span>
           </div>
+
+          {isDone && (
+            <button
+              type="button"
+              onClick={onContinue}
+              className="mt-10 w-full h-12 rounded bg-white text-[#2f3131] text-[16px] leading-[24px] font-medium hover:bg-[#e2e2e2] transition-colors flex items-center justify-center gap-2"
+            >
+              Continue
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </main>
     </div>
