@@ -36,6 +36,8 @@
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
-    "langsmith": "^0.7.5"
+    "eslint-config-next": "^16.2.9",
+    "langsmith": "^0.7.5",
+    "next": "^16.2.9"
   }
 }

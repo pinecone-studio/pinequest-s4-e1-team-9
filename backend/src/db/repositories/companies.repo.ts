@@ -17,6 +17,7 @@ function serializeCompany(company: Company, role?: CompanyRole) {
     id: company.id,
     name: company.name,
     domain: company.domain,
+    invitationCode: company.invitationCode,
     createdAt: company.createdAt,
     updatedAt: company.updatedAt,
     role,
@@ -37,12 +38,14 @@ function serializeMember(member: CompanyMember) {
 export async function createCompanyForOwner(
   ownerUserId: string,
   input: CreateCompanyInput,
+  invitationCode: string,
 ) {
   const company = await prisma.$transaction(async (tx) => {
     const createdCompany = await tx.company.create({
       data: {
         name: input.name.trim(),
         domain: input.domain?.trim() || null,
+        invitationCode,
       },
     });
 
@@ -141,6 +144,26 @@ export async function listCompanyMembers(companyId: string) {
   });
 
   return members.map(serializeMember);
+}
+
+export async function joinCompanyByCode(userId: string, invitationCode: string) {
+  const company = await prisma.company.findUnique({
+    where: { invitationCode },
+  });
+
+  if (!company) {
+    throw new Error('Invalid invitation code.');
+  }
+
+  const member = await prisma.companyMember.create({
+    data: {
+      companyId: company.id,
+      userId,
+      role: 'MEMBER',
+    },
+  });
+
+  return serializeMember(member);
 }
 
 export async function addCompanyMember(companyId: string, userId: string) {

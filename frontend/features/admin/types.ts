@@ -4,6 +4,7 @@ export type Company = {
   id: string;
   name: string;
   domain: string | null;
+  invitationCode: string;
   createdAt: string;
   updatedAt: string;
   role: CompanyRole;
