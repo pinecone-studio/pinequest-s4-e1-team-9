@@ -14,13 +14,14 @@ enum CompanyRole {
 }
 
 model Company {
-  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name      String
-  domain    String?
-  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  members   CompanyMember[]
-  documents UserDocument[]
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  domain          String?
+  invitationCode  String          @unique @map("invitation_code")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  members         CompanyMember[]
+  documents       UserDocument[]
 
   @@map("companies")
 }

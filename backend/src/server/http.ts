@@ -5,6 +5,7 @@ import { handleUploadRoute } from '../routes/upload.route.js';
 import { handleDocumentPdfUrlRoute } from '../routes/document.route.js';
 import { handleHealthRoute } from '../routes/health.route.js';
 import { handleAdminRoute } from '../routes/admin.route.js';
+import { handleCompanyRoute } from '../routes/company.route.js';
 
 export function startHttpServer(port = 4000, host = '0.0.0.0') {
   const corsHeaders = {
@@ -22,6 +23,7 @@ export function startHttpServer(port = 4000, host = '0.0.0.0') {
 
     try {
       if (await handleHealthRoute(req, res, corsHeaders)) return;
+      if (await handleCompanyRoute(req, res, corsHeaders)) return;
       if (await handleAdminRoute(req, res, corsHeaders)) return;
       if (await handleChatHistoryRoute(req, res, corsHeaders)) return;
       if (await handleChatRoute(req, res, corsHeaders)) return;

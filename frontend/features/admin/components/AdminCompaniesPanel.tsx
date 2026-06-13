@@ -30,25 +30,25 @@ export default function AdminCompaniesPanel({
   return (
     <div className="space-y-6">
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white p-8 shadow-xl">
-        <h2 className="mb-6 text-2xl font-bold text-gray-900">
+        <h2 className="mb-6 text-2xl font-bold text-black">
           Create New Company
         </h2>
         <form onSubmit={createCompany} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1 block text-sm font-medium text-black">
               Company Name
             </label>
             <input
               type="text"
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
-              className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-4 py-2 text-black focus:border-blue-500 focus:ring-blue-500"
               placeholder="Acme Corp"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1 block text-sm font-medium text-black">
               Domain (optional)
             </label>
             <input
@@ -91,7 +91,7 @@ export default function AdminCompaniesPanel({
                     {company.name}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    {company.domain || 'No domain'} · {company.role}
+                    {company.domain || 'No domain'} · {company.role} · Code: <span className="font-mono font-bold text-blue-600">{company.invitationCode}</span>
                   </p>
                 </div>
                 <span className="text-xs text-gray-400">
