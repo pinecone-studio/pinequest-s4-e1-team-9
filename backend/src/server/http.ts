@@ -10,7 +10,7 @@ import { handleCompanyRoute } from '../routes/company.route.js';
 export function startHttpServer(port = 4000, host = '0.0.0.0') {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'OPTIONS, GET, POST, DELETE',
+    'Access-Control-Allow-Methods': 'OPTIONS, GET, POST, PATCH, DELETE',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 

@@ -37,15 +37,26 @@ export async function listCompanyMembers(companyId: string) {
   return companiesRepo.listCompanyMembers(companyId);
 }
 
-export async function joinCompanyByCode(userId: string, invitationCode: string) {
+export async function joinCompanyByCode(
+  userId: string,
+  invitationCode: string,
+) {
   if (!invitationCode?.trim()) {
     throw new DocumentProcessingError('Invitation code is required.', 400);
   }
 
+  const normalizedInvitationCode = invitationCode.trim().toUpperCase();
+
   try {
-    return await companiesRepo.joinCompanyByCode(userId, invitationCode.trim());
+    return await companiesRepo.joinCompanyByCode(
+      userId,
+      normalizedInvitationCode,
+    );
   } catch (error) {
-    if (error instanceof Error && error.message === 'Invalid invitation code.') {
+    if (
+      error instanceof Error &&
+      error.message === 'Invalid invitation code.'
+    ) {
       throw new DocumentProcessingError(error.message, 404);
     }
     throw error;

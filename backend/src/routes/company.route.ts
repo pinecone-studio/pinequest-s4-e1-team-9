@@ -23,7 +23,18 @@ export async function handleCompanyRoute(
       const companies = await listUserCompanies(userId);
       sendJson(res, 200, companies, headers);
     } catch (error) {
-      sendJson(res, 500, { error: 'Failed to list companies.' }, headers);
+      const statusCode =
+        error instanceof DocumentProcessingError ? error.statusCode : 500;
+      const clientMessage =
+        error instanceof DocumentProcessingError
+          ? error.message
+          : 'Failed to list companies.';
+
+      if (statusCode >= 500) {
+        console.error('Company list failure:', error);
+      }
+
+      sendJson(res, statusCode, { error: clientMessage }, headers);
     }
     return true;
   }
@@ -39,7 +50,7 @@ export async function handleCompanyRoute(
       const body = await readJsonBody<{ invitationCode?: string }>(req, {
         maxBytes: 16 * 1024,
       });
-      
+
       if (!body.invitationCode) {
         throw new DocumentProcessingError('Invitation code is required.', 400);
       }

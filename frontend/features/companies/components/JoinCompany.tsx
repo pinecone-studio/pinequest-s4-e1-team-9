@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
+import { joinCompanyByCode } from '@/features/companies/api';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 
@@ -18,17 +19,7 @@ export default function JoinCompany() {
     setError(null);
 
     try {
-      const response = await fetch('/api/companies/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invitationCode }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to join company');
-      }
-
+      await joinCompanyByCode(invitationCode);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

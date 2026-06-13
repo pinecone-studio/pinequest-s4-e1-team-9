@@ -14,14 +14,21 @@ export function useAdminCompanies() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
     null,
   );
+  const [isFetchingCompanies, setIsFetchingCompanies] = useState(false);
   const [companyLoading, setCompanyLoading] = useState(false);
   const [companyError, setCompanyError] = useState<string | null>(null);
 
   const fetchCompanies = useCallback(async () => {
+    setIsFetchingCompanies(true);
+
     try {
       const data = await listCompanies();
       setCompanies(data);
-      setSelectedCompanyId((current) => current ?? data[0]?.id ?? null);
+      setSelectedCompanyId((current) =>
+        data.some((company) => company.id === current)
+          ? current
+          : (data[0]?.id ?? null),
+      );
       setCompanyError(null);
       return data;
     } catch (error) {
@@ -30,6 +37,8 @@ export function useAdminCompanies() {
         error instanceof Error ? error.message : 'Failed to fetch companies.',
       );
       return [];
+    } finally {
+      setIsFetchingCompanies(false);
     }
   }, []);
 
@@ -40,8 +49,8 @@ export function useAdminCompanies() {
 
     try {
       const company = await createCompanyRequest({
-        name: companyName,
-        domain: companyDomain,
+        name: companyName.trim(),
+        domain: companyDomain.trim(),
       });
       setCompanyName('');
       setCompanyDomain('');
@@ -64,6 +73,7 @@ export function useAdminCompanies() {
     companies,
     selectedCompanyId,
     setSelectedCompanyId,
+    isFetchingCompanies,
     companyLoading,
     companyError,
     fetchCompanies,

@@ -1,111 +1,215 @@
 'use client';
 
-import { useEffect } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import {
+  AlertCircle,
+  Building2,
+  Check,
+  Copy,
+  Loader2,
+  Plus,
+  RefreshCw,
+} from 'lucide-react';
 import type { useAdminCompanies } from '@/features/admin/hooks/useAdminCompanies';
+import type { Company, CompanyRole } from '@/features/admin/types';
+import { cn } from '@/shared/lib/utils';
+import { Button } from '@/shared/ui/button';
+import { Input } from '@/shared/ui/input';
 
 type AdminCompaniesState = ReturnType<typeof useAdminCompanies>;
+
+const roleClassName: Record<CompanyRole, string> = {
+  OWNER: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700',
+  ADMIN: 'border-sky-500/30 bg-sky-500/10 text-sky-700',
+  MEMBER: 'border-zinc-500/30 bg-zinc-500/10 text-zinc-700',
+};
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
 export default function AdminCompaniesPanel({
   companiesState,
 }: {
   companiesState: AdminCompaniesState;
 }) {
+  const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const {
     companyName,
     setCompanyName,
     companyDomain,
     setCompanyDomain,
     companies,
+    isFetchingCompanies,
     companyLoading,
     companyError,
     fetchCompanies,
     createCompany,
   } = companiesState;
 
-  useEffect(() => {
-    void fetchCompanies();
-  }, [fetchCompanies]);
+  const copyInvitationCode = async (company: Company) => {
+    await navigator.clipboard.writeText(company.invitationCode);
+    setCopiedCompanyId(company.id);
+    window.setTimeout(() => {
+      setCopiedCompanyId((current) =>
+        current === company.id ? null : current,
+      );
+    }, 1200);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white p-8 shadow-xl">
-        <h2 className="mb-6 text-2xl font-bold text-black">
-          Create New Company
-        </h2>
-        <form onSubmit={createCompany} className="space-y-4">
+    <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+      <section className="rounded-lg border border-border bg-sidebar p-4">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+            <Building2 className="size-4" aria-hidden="true" />
+          </span>
           <div>
-            <label className="mb-1 block text-sm font-medium text-black">
-              Company Name
-            </label>
-            <input
+            <h2 className="text-base font-semibold">Create Company</h2>
+            <p className="text-sm text-muted-foreground">
+              New companies are owned by your signed-in account.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={createCompany} className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Company name
+            <Input
               type="text"
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
-              className="w-full rounded-md border border-gray-300 px-4 py-2 text-black focus:border-blue-500 focus:ring-blue-500"
               placeholder="Acme Corp"
+              disabled={companyLoading}
               required
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-black">
-              Domain (optional)
-            </label>
-            <input
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Domain
+            <Input
               type="text"
               value={companyDomain}
               onChange={(event) => setCompanyDomain(event.target.value)}
-              className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
               placeholder="acme.com"
+              disabled={companyLoading}
             />
-          </div>
-          <button
-            type="submit"
-            disabled={companyLoading}
-            className="w-full rounded-md bg-blue-600 py-2 font-medium text-white shadow-md transition-colors hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {companyLoading ? 'Creating...' : 'Create Company'}
-          </button>
+          </label>
+
+          <Button type="submit" disabled={companyLoading}>
+            {companyLoading ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Plus className="size-4" aria-hidden="true" />
+            )}
+            {companyLoading ? 'Creating' : 'Create company'}
+          </Button>
         </form>
+
         {companyError && (
-          <div className="mt-4 flex items-center rounded bg-red-50 p-3 text-sm text-red-700">
-            <AlertCircle className="mr-2 h-4 w-4" />
-            {companyError}
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 size-4" aria-hidden="true" />
+            <span>{companyError}</span>
           </div>
         )}
-      </div>
+      </section>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white p-8 shadow-xl">
-        <h2 className="mb-6 text-2xl font-bold text-gray-900">
-          Existing Companies
-        </h2>
-        <div className="divide-y divide-gray-100">
-          {companies.length > 0 ? (
+      <section className="min-w-0 rounded-lg border border-border bg-sidebar">
+        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Companies</h2>
+            <p className="text-sm text-muted-foreground">
+              {companies.length} total
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void fetchCompanies();
+            }}
+            disabled={isFetchingCompanies}
+            className="w-full sm:w-auto"
+          >
+            <RefreshCw
+              className={cn('size-4', isFetchingCompanies && 'animate-spin')}
+              aria-hidden="true"
+            />
+            Refresh
+          </Button>
+        </div>
+
+        <div className="divide-y divide-border">
+          {isFetchingCompanies && companies.length === 0 ? (
+            <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Loading companies...
+            </div>
+          ) : companies.length > 0 ? (
             companies.map((company) => (
-              <div
+              <article
                 key={company.id}
-                className="flex items-center justify-between py-4"
+                className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"
               >
-                <div>
-                  <h3 className="font-semibold text-gray-900">
-                    {company.name}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {company.domain || 'No domain'} · {company.role} · Code: <span className="font-mono font-bold text-blue-600">{company.invitationCode}</span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-sm font-semibold">
+                      {company.name}
+                    </h3>
+                    <span
+                      className={cn(
+                        'rounded-md border px-1.5 py-0.5 text-xs font-medium',
+                        roleClassName[company.role],
+                      )}
+                    >
+                      {company.role}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {company.domain || 'No domain'} · Added{' '}
+                    {formatDate(company.createdAt)}
                   </p>
                 </div>
-                <span className="text-xs text-gray-400">
-                  Added {new Date(company.createdAt).toLocaleDateString()}
-                </span>
-              </div>
+
+                <div className="flex min-w-0 items-center gap-2">
+                  <code className="min-w-0 truncate rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-foreground">
+                    {company.invitationCode}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label={`Copy invite code for ${company.name}`}
+                    title="Copy invite code"
+                    onClick={() => {
+                      void copyInvitationCode(company);
+                    }}
+                  >
+                    {copiedCompanyId === company.id ? (
+                      <Check className="size-4" aria-hidden="true" />
+                    ) : (
+                      <Copy className="size-4" aria-hidden="true" />
+                    )}
+                  </Button>
+                </div>
+              </article>
             ))
           ) : (
-            <p className="py-4 text-center text-gray-500">
+            <p className="p-4 text-sm text-muted-foreground">
               No companies created yet.
             </p>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

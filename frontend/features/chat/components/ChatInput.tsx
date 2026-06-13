@@ -12,7 +12,7 @@ interface ChatInputProps {
   onRemoveAttachment?: () => void;
   attachedFile?: File | null;
   disabled?: boolean;
-  inputRef: RefObject<HTMLTextAreaElement | null>;
+  inputRef: RefObject<HTMLTextAreaElement>;
 }
 
 export default function ChatInput({

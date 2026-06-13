@@ -21,6 +21,9 @@ export const clientEnv = {
   documentsApiUrl:
     process.env.NEXT_PUBLIC_DOCUMENTS_API_URL ||
     `${fallbackApiOrigin}/documents`,
+  companiesApiUrl:
+    process.env.NEXT_PUBLIC_COMPANIES_API_URL ||
+    `${fallbackApiOrigin}/api/companies`,
   adminCompaniesApiUrl:
     process.env.NEXT_PUBLIC_ADMIN_COMPANIES_API_URL ||
     `${fallbackApiOrigin}/admin/companies`,
