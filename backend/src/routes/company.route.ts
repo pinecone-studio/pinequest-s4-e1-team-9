@@ -28,42 +28,41 @@ export async function handleCompanyRoute(
     return true;
   }
 
-  if (requestUrl.pathname !== joinCompanyPath) {
-    return false;
-  }
-//...
+  if (requestUrl.pathname === joinCompanyPath) {
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { error: 'Method not allowed.' }, headers);
+      return true;
+    }
 
-  if (req.method !== 'POST') {
-    sendJson(res, 405, { error: 'Method not allowed.' }, headers);
+    try {
+      const userId = await getAuthenticatedUserId(req);
+      const body = await readJsonBody<{ invitationCode?: string }>(req, {
+        maxBytes: 16 * 1024,
+      });
+      
+      if (!body.invitationCode) {
+        throw new DocumentProcessingError('Invitation code is required.', 400);
+      }
+
+      const membership = await joinCompanyByCode(userId, body.invitationCode);
+      sendJson(res, 201, membership, headers);
+    } catch (error) {
+      const statusCode =
+        error instanceof DocumentProcessingError ? error.statusCode : 500;
+      const clientMessage =
+        error instanceof DocumentProcessingError
+          ? error.message
+          : 'Failed to join company.';
+
+      if (statusCode >= 500) {
+        console.error('Company route failure:', error);
+      }
+
+      sendJson(res, statusCode, { error: clientMessage }, headers);
+    }
+
     return true;
   }
 
-  try {
-    const userId = await getAuthenticatedUserId(req);
-    const body = await readJsonBody<{ invitationCode?: string }>(req, {
-      maxBytes: 16 * 1024,
-    });
-    
-    if (!body.invitationCode) {
-      throw new DocumentProcessingError('Invitation code is required.', 400);
-    }
-
-    const membership = await joinCompanyByCode(userId, body.invitationCode);
-    sendJson(res, 201, membership, headers);
-  } catch (error) {
-    const statusCode =
-      error instanceof DocumentProcessingError ? error.statusCode : 500;
-    const clientMessage =
-      error instanceof DocumentProcessingError
-        ? error.message
-        : 'Failed to join company.';
-
-    if (statusCode >= 500) {
-      console.error('Company route failure:', error);
-    }
-
-    sendJson(res, statusCode, { error: clientMessage }, headers);
-  }
-
-  return true;
+  return false;
 }
