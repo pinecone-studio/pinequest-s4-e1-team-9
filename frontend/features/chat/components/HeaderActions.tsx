@@ -1,18 +1,21 @@
 'use client';
 
-import { CircleUserRound, LogOut, Moon, Sun } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Button } from '@/shared/ui/button';
+import { ArrowLeft, LogOut, Moon, Sun } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 function IconBtn({
   label,
   onClick,
   isDarkMode,
+  children,
 }: {
   label: string;
   onClick: () => void;
   isDarkMode: boolean;
+  children: React.ReactNode;
 }) {
   return (
     <Button
@@ -22,7 +25,7 @@ function IconBtn({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="rounded-[10px] text-muted-foreground transition-colors duration-150"
+      className="rounded-full text-muted-foreground transition-colors duration-150"
       style={
         {
           '--hover-color': isDarkMode ? '#00e5cc' : '#1e3a8a',
@@ -37,19 +40,14 @@ function IconBtn({
           'inherit';
       }}
     >
-      <span style={{ filter: 'drop-shadow(0 0 4px #00e5cc)' }}>
-        {isDarkMode ? (
-          <Moon className="size-5" aria-hidden="true" />
-        ) : (
-          <Sun className="size-5" aria-hidden="true" />
-        )}
-      </span>
+      <span style={{ filter: 'drop-shadow(0 0 4px #00e5cc)' }}>{children}</span>
     </Button>
   );
 }
 
 export default function HeaderActions() {
-  const { signOut, user } = useAuth();
+  const router = useRouter();
+  const { signOut } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isConfirmingSignOut, setIsConfirmingSignOut] = useState(false);
   const signOutMenuRef = useRef<HTMLDivElement>(null);
@@ -99,49 +97,39 @@ export default function HeaderActions() {
   };
 
   return (
-    <div className="absolute top-4 right-5 z-10 flex max-w-[calc(100vw-2.5rem)] items-center gap-1">
-      <div
-        className="flex h-9 min-w-0 max-w-[42vw] items-center gap-2 rounded-[10px] border border-border/70 bg-background/80 px-3 text-sm text-foreground shadow-sm backdrop-blur sm:max-w-[260px]"
-        aria-label={`Signed in as ${userEmail}`}
-        title={userEmail}
+    <div className="absolute top-4 left-5 right-5 flex items-center justify-between z-10 font-['Inter']">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => router.push('/landing')}
+        className="rounded-full text-muted-foreground hover:text-foreground transition-colors duration-150 gap-1.5"
       >
-        <CircleUserRound
-          className="size-5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <span className="min-w-0 truncate">{userEmail}</span>
-      </div>
-      <IconBtn label="Theme" onClick={toggleTheme} isDarkMode={isDarkMode} />
-      <div className="relative" ref={signOutMenuRef}>
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        Back
+      </Button>
+
+      <div className="flex items-center gap-1">
+        <IconBtn label="Theme" onClick={toggleTheme} isDarkMode={isDarkMode}>
+          {isDarkMode ? (
+            <Moon className="size-5" aria-hidden="true" />
+          ) : (
+            <Sun className="size-5" aria-hidden="true" />
+          )}
+        </IconBtn>
         <Button
           type="button"
           variant="ghost"
           size="icon-lg"
           aria-label="Sign out"
           title="Sign out"
-          aria-expanded={isConfirmingSignOut}
-          onClick={confirmSignOut}
-          className="rounded-[10px] text-muted-foreground transition-colors duration-150"
+          onClick={() => {
+            void signOut();
+          }}
+          className="rounded-full text-muted-foreground transition-colors duration-150"
         >
           <LogOut className="size-5" aria-hidden="true" />
         </Button>
-
-        {isConfirmingSignOut && (
-          <div className="absolute top-full right-0 mt-2 w-40 rounded-[10px] border border-border/70 bg-background/95 p-1 shadow-lg backdrop-blur">
-            <Button
-              type="button"
-              variant="ghost"
-              size="lg"
-              onClick={() => {
-                void signOut();
-              }}
-              className="h-9 w-full justify-start rounded-lg px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut className="size-4" aria-hidden="true" />
-              Sign out
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );
