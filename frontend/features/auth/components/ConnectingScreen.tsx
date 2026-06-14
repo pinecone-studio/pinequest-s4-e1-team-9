@@ -19,10 +19,12 @@ const MESSAGES = [
 const STEP_DURATION = 800;
 
 interface ConnectingScreenProps {
+  showContinueButton?: boolean;
   onContinue?: () => void;
 }
 
 export default function ConnectingScreen({
+  showContinueButton = true,
   onContinue,
 }: ConnectingScreenProps) {
   const [messageIndex, setMessageIndex] = useState(0);
@@ -47,6 +49,14 @@ export default function ConnectingScreen({
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isDone || showContinueButton) return;
+
+    const timeout = setTimeout(() => onContinue?.(), 600);
+
+    return () => clearTimeout(timeout);
+  }, [isDone, onContinue, showContinueButton]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#131313] text-[#e5e2e1] antialiased">
@@ -105,7 +115,7 @@ export default function ConnectingScreen({
             </span>
           </div>
 
-          {isDone && (
+          {isDone && showContinueButton && (
             <button
               type="button"
               onClick={onContinue}

@@ -49,16 +49,51 @@ export default function HeaderActions() {
   const router = useRouter();
   const { signOut } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isConfirmingSignOut, setIsConfirmingSignOut] = useState(false);
+  const signOutMenuRef = useRef<HTMLDivElement>(null);
+  const userEmail = user?.email ?? 'Signed in';
 
   useEffect(() => {
     setIsDarkMode(document.documentElement.classList.contains('dark'));
   }, []);
+
+  useEffect(() => {
+    if (!isConfirmingSignOut) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        signOutMenuRef.current &&
+        !signOutMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsConfirmingSignOut(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsConfirmingSignOut(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isConfirmingSignOut]);
 
   const toggleTheme = () => {
     const nextIsDarkMode = !isDarkMode;
 
     document.documentElement.classList.toggle('dark', nextIsDarkMode);
     setIsDarkMode(nextIsDarkMode);
+    setIsConfirmingSignOut(false);
+  };
+
+  const confirmSignOut = () => {
+    setIsConfirmingSignOut((current) => !current);
   };
 
   return (
