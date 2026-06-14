@@ -85,7 +85,7 @@ function renderCitations(citations: Citation[] | undefined) {
             className="
               border-l border-[#00e5cc]/60 pl-3 block w-full text-left no-underline
               text-[12px] leading-5 text-muted-foreground
-              font-['JetBrains_Mono'] hover:bg-secondary/20 py-1 pr-2 transition-colors
+              font-['Inter'] hover:bg-secondary/20 py-1 pr-2 transition-colors
             "
             title="Supabase Storage-оос бодит PDF хуудсыг шинэ таб дээр нээх"
           >
@@ -206,7 +206,7 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
                     className="
                       w-full bg-secondary rounded-2xl border border-[#00e5cc]/40
                       px-4 py-3 text-[15px] leading-6 text-secondary-foreground
-                      whitespace-pre-wrap break-words font-['JetBrains_Mono']
+                      whitespace-pre-wrap break-words font-['Inter']
                       outline-none focus:border-[#717976] resize-none
                       transition-colors duration-150
                     "
@@ -244,9 +244,7 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
                 <>
                   <div
                     className="
-                      bg-secondary rounded-2xl px-4 py-2.5 text-[15px] leading-6
-                      text-secondary-foreground whitespace-pre-wrap break-words
-                      font-['JetBrains_Mono'] shadow-sm
+                      bg-secondary rounded-full px-5 py-4 text-[16px] leading-6 text-secondary-foreground whitespace-pre-wrap break-words font-['Inter'] shadow-sm
                     "
                   >
                     {renderWithInteractiveSources(
@@ -306,7 +304,7 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
     <div className="flex flex-col relative">
       <div
         className={`
-          m-0 text-[15px] leading-[26px] whitespace-pre-wrap break-words font-['JetBrains_Mono']
+          m-0 text-[15px] leading-[26px] whitespace-pre-wrap break-words font-['Inter']
           ${message.tone === 'error' ? 'text-destructive' : 'text-foreground'}
           ${message.tone === 'success' ? 'text-[#00e5cc]' : ''}
         `}

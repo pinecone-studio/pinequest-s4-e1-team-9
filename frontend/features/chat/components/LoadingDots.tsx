@@ -7,7 +7,7 @@ export default function LoadingDots({
 }: LoadingDotsProps) {
   return (
     <div
-      className="flex items-center gap-2 py-1 text-[12px] text-muted-foreground font-['JetBrains_Mono']"
+      className="flex items-center gap-2 py-1 text-[12px] text-muted-foreground font-['Inter']"
       aria-label={label}
     >
       <span className="flex items-center gap-1" aria-hidden="true">

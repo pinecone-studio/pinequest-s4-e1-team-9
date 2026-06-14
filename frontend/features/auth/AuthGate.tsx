@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Eye, EyeOff, LogIn, UserPlus, User, Mail, Lock } from 'lucide-react';
 import { useAuth } from '@/features/auth/AuthProvider';
-import ConnectingScreen from '@/features/auth/components/ConnectingScreen';
+import GeminiLogo from '@/features/chat/components/GeminiLogo';
+import { Eye, EyeOff, Lock, LogIn, Mail, User, UserPlus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 type AuthMode = 'sign-in' | 'sign-up';
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const { session, isLoading, signIn, signUp } = useAuth();
   const [mode, setMode] = useState<AuthMode>('sign-in');
   const [fullName, setFullName] = useState('');
@@ -16,13 +18,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showConnecting, setShowConnecting] = useState(false);
-
-  useEffect(() => {
-    if (!session) {
-      setShowConnecting(false);
-    }
-  }, [session]);
 
   if (isLoading) {
     return (
@@ -30,10 +25,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         Loading session...
       </div>
     );
-  }
-
-  if (session && showConnecting) {
-    return <ConnectingScreen onContinue={() => setShowConnecting(false)} />;
   }
 
   if (session) return children;
@@ -45,11 +36,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     try {
       if (mode === 'sign-in') {
         await signIn(email, password);
-        setShowConnecting(true);
+        router.push('/landing');
       } else {
         await signUp(email, password);
-        setShowConnecting(true);
-        setStatus('Check your email to confirm your account.');
+        router.push('/landing');
       }
     } catch (err: unknown) {
       setStatus(err instanceof Error ? err.message : 'Something went wrong.');
@@ -64,20 +54,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         <div className="w-full max-w-md bg-[#171717] border border-[#262626] rounded-xl p-10 shadow-none">
           <div className="mb-10 text-center">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#2a2a2a] border border-[#444748] mb-4">
-              <svg
-                className="w-5 h-5 text-white"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-                />
-              </svg>
+              <GeminiLogo size={20} aria-label="Gemini" />
             </div>
+
             <h1 className="text-2xl md:text-[32px] md:leading-[40px] font-semibold tracking-tight text-white mb-2">
               Create your account
             </h1>
@@ -94,12 +73,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
           <form className="space-y-5" onSubmit={submit}>
             <div className="space-y-2">
-              <label
-                htmlFor="fullName"
-                className="block text-[12px] leading-[16px] tracking-[0.05em] font-medium font-mono text-[#8e9192] uppercase"
-              >
-                Full name
-              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <User className="w-4 h-4 text-[#444748]" />
@@ -108,21 +81,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                   id="fullName"
                   type="text"
                   required
-                  placeholder="Jane Doe"
+                  placeholder="Full Name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-[#171717] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded h-11 pl-10 pr-4 transition-colors placeholder:text-[#444748] outline-none"
+                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded-full h-11 pl-10 pr-4 transition-colors placeholder:text-[#7d7b7b] outline-none"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor="workEmail"
-                className="block text-[12px] leading-[16px] tracking-[0.05em] font-medium font-mono text-[#8e9192] uppercase"
-              >
-                Work email
-              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="w-4 h-4 text-[#444748]" />
@@ -131,21 +98,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                   id="workEmail"
                   type="email"
                   required
-                  placeholder="jane@company.com"
+                  placeholder="Email Address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#171717] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded h-11 pl-10 pr-4 transition-colors placeholder:text-[#444748] outline-none"
+                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded-full h-11 pl-10 pr-4 transition-colors placeholder:text-[#7d7b7b] outline-none"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor="signupPassword"
-                className="block text-[12px] leading-[16px] tracking-[0.05em] font-medium font-mono text-[#8e9192] uppercase"
-              >
-                Password
-              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="w-4 h-4 text-[#444748]" />
@@ -154,10 +115,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                   id="signupPassword"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="••••••••"
+                  placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#171717] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded h-11 pl-10 pr-12 transition-colors placeholder:text-[#444748] outline-none"
+                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded-full h-11 pl-10 pr-12 transition-colors placeholder:text-[#7d7b7b] outline-none"
                 />
                 <button
                   type="button"
@@ -176,7 +137,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-[#FAFAFA] text-[#0A0A0A] text-[16px] leading-[24px] font-medium h-11 rounded hover:bg-[#e2e2e2] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#FAFAFA] text-[#0A0A0A] text-[16px] leading-[24px] font-medium h-11 rounded-full mt-5 hover:bg-[#e2e2e2] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <span className="animate-pulse">Creating account...</span>
@@ -205,7 +166,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="mt-6 flex items-center justify-center gap-2 max-w-md text-center">
-          <Lock className="w-4 h-4 text-[#444748] flex-shrink-0" />
           <p className="text-[14px] leading-[20px] text-[#444748]">
             Secure access. Company documents stay private to your workspace.
           </p>
@@ -219,19 +179,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <header className="w-full sticky top-0 z-50 bg-[#0e0e0e] border-b border-[#444748]">
         <div className="flex justify-between items-center h-16 px-6 max-w-screen-xl mx-auto">
           <div className="flex items-center gap-2">
-            <svg
-              className="w-6 h-6 text-[#c6c6c7]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-              />
-            </svg>
+            <GeminiLogo size={26} aria-label="Gemini" />
             <span className="font-bold text-[#c4c7c8] tracking-tight text-base">
               CompanyDoc AI
             </span>
@@ -259,47 +207,27 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
             <form className="space-y-6" onSubmit={submit}>
               <div className="space-y-1">
-                <label
-                  htmlFor="email"
-                  className="block text-[12px] leading-[16px] tracking-[0.05em] font-medium font-mono text-[#c4c7c8] uppercase"
-                >
-                  Email
-                </label>
                 <input
                   id="email"
                   type="email"
                   required
-                  placeholder="you@company.com"
+                  placeholder="Email Address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#171717] border border-[#404040] focus:border-white focus:ring-0 text-[#e5e2e1] text-[16px] leading-[24px] rounded h-12 px-4 transition-colors placeholder:text-[#8e9192] outline-none"
+                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-[#e5e2e1] text-[16px] leading-[24px] rounded-full h-12 px-4 transition-colors placeholder:text-[#8e9192] outline-none"
                 />
               </div>
 
               <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <label
-                    htmlFor="password"
-                    className="block text-[12px] leading-[16px] tracking-[0.05em] font-medium font-mono text-[#c4c7c8] uppercase"
-                  >
-                    Password
-                  </label>
-                  <a
-                    href="#"
-                    className="text-[14px] text-white hover:text-[#c6c6c7] transition-colors"
-                  >
-                    Forgot password?
-                  </a>
-                </div>
                 <div className="relative">
                   <input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder="••••••••"
+                    placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#171717] border border-[#404040] focus:border-white focus:ring-0 text-[#e5e2e1] text-[16px] leading-[24px] rounded h-12 px-4 pr-12 transition-colors placeholder:text-[#8e9192] outline-none"
+                    className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-[#e5e2e1] text-[16px] leading-[24px] rounded-full h-12 px-4 pr-12 transition-colors placeholder:text-[#8e9192] outline-none"
                   />
                   <button
                     type="button"
@@ -313,12 +241,20 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                     )}
                   </button>
                 </div>
+                <div className="flex justify-end items-center mt-3 mr-3">
+                  <a
+                    href="#"
+                    className="text-[14px] text-white hover:text-[#c6c6c7] transition-colors"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-white text-[#2f3131] text-[16px] leading-[24px] font-medium h-12 rounded hover:bg-[#e2e2e2] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-white text-[#2f3131] text-[16px] leading-[24px] font-medium h-12 rounded-full hover:bg-[#e2e2e2] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <span className="animate-pulse">Signing in...</span>

@@ -1,9 +1,128 @@
 'use client';
 
-import { SearchModal } from '@/features/chat/components/SearchModel';
 import type { Conversation } from '@/shared/types/chat';
-import { MessageSquare, Search, Trash2 } from 'lucide-react';
-import { memo, useState } from 'react';
+import { MessageSquare, Search, Trash2, X } from 'lucide-react';
+import { memo, useEffect, useMemo, useState } from 'react';
+
+interface SearchModalProps {
+  conversations: Conversation[];
+  onSelect: (id: string) => void;
+  onClose: () => void;
+  onNewChat: () => void;
+}
+
+export function SearchModal({
+  conversations,
+  onSelect,
+  onClose,
+  onNewChat,
+}: SearchModalProps) {
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const filtered = useMemo(
+    () =>
+      query.trim()
+        ? conversations.filter((c) =>
+            c.title.toLowerCase().includes(query.toLowerCase()),
+          )
+        : conversations,
+    [conversations, query],
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg bg-[#2c2c2c] rounded-2xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center px-4 py-3 border-b border-white/10">
+          <Search size={16} className="text-muted-foreground shrink-0 mr-3" />
+          <input
+            autoFocus
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search chats..."
+            className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground text-[15px] outline-none border-none"
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-3 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 border-none cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="max-h-[60vh] overflow-y-auto py-2">
+          <button
+            type="button"
+            onClick={() => {
+              onNewChat();
+              onClose();
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-transparent border-none cursor-pointer text-foreground hover:bg-white/5 transition-colors text-[14px]"
+          >
+            <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center shrink-0">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+            </div>
+            New chat
+          </button>
+
+          {filtered.length > 0 && (
+            <>
+              <p className="px-4 py-1 text-[11px] text-muted-foreground/60 tracking-widest uppercase mt-2">
+                Recents
+              </p>
+              {filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(c.id);
+                    onClose();
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-transparent border-none cursor-pointer text-foreground hover:bg-white/5 transition-colors text-[14px] text-left"
+                >
+                  <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center shrink-0">
+                    <MessageSquare size={14} />
+                  </div>
+                  <span className="truncate">{c.title}</span>
+                </button>
+              ))}
+            </>
+          )}
+
+          {filtered.length === 0 && query && (
+            <p className="text-center text-[13px] text-muted-foreground py-8">
+              No matching chats
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface HistoryChatProps {
   conversations: Conversation[];
@@ -154,16 +273,14 @@ function HistoryChat({
             type="button"
             onClick={() => setModalOpen(true)}
             className="
-              w-full h-9 py-6 rounded-full flex items-center px-2
+              w-full h-[60px] rounded-full flex items-center gap-2 px-4
               bg-[#717976]/20 hover:bg-[#717976]/60
               border-none cursor-pointer transition-colors duration-150
             "
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center text-foreground">
-              <Search size={20} />
-            </span>
-            <span className="text-[14px] truncate font-medium text-foreground">
-              Search Chat
+            <Search size={13} className="text-muted-foreground shrink-0" />
+            <span className="text-[14px] text-muted-foreground font-['Inter']">
+              Search chats…
             </span>
           </button>
         </div>
@@ -189,7 +306,7 @@ function HistoryChat({
 
           {!loading && conversations.length > 0 && (
             <>
-              <p className="px-2 py-1 text-[12px] text-muted-foreground/60 tracking-[0.08em] font-['Inter'] mt-2">
+              <p className="px-2 py-1 text-[11px] text-muted-foreground/60 tracking-[0.08em] font-['Inter'] uppercase mt-2">
                 Recents
               </p>
               <div className="flex flex-col gap-0.5 mb-2">

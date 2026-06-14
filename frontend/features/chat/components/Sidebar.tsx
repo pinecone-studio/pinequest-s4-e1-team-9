@@ -31,6 +31,7 @@ function Sidebar({
   const isMobile = useIsMobile();
 
   const toggleExpanded = () => setExpanded((prev) => !prev);
+
   const closeMobileSidebar = () => {
     if (isMobile) setExpanded(false);
   };
@@ -60,7 +61,6 @@ function Sidebar({
           className="fixed inset-0 z-20 bg-background/70 border-none"
         />
       )}
-
       <aside
         className={`
           flex flex-col pt-3 pb-4 gap-1 shrink-0 px-2.5 font-['DM_Sans']
@@ -74,18 +74,18 @@ function Sidebar({
           type="button"
           onClick={toggleExpanded}
           aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          className="
-            mb-3 h-9 w-full rounded-lg border-none bg-transparent cursor-pointer
-            flex items-center justify-start gap-3
+          className={`
+            mb-3 h-9 w-full rounded-full border-none bg-transparent cursor-pointer
+            flex items-center justify-start gap-3 text-foreground
             transition-colors duration-150 hover:bg-muted
-          "
+          `}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center">
             <GeminiLogo size={26} />
           </span>
           {expanded && (
-            <span className="truncate text-[20px] font-medium text-foreground">
-              Research Docs
+            <span className="truncate text-[16px] font-medium text-foreground">
+              CompanyDoc AI
             </span>
           )}
         </button>
@@ -95,7 +95,7 @@ function Sidebar({
           onClick={handleNewChat}
           aria-label="New chat"
           className={`
-            h-9 w-full rounded-[10px] flex items-center justify-start gap-2 border-none cursor-pointer
+            h-9 w-full rounded-full flex items-center justify-start border-none cursor-pointer
             transition-colors duration-150 bg-[#717976]/20 text-black hover:bg-[#717976]/60
             ${expanded ? 'py-6 px-2' : ''}
           `}
@@ -110,8 +110,6 @@ function Sidebar({
           )}
         </button>
 
-        <div className="w-full h-px bg-border/50 mb-1" />
-
         <HistoryChat
           conversations={conversations}
           activeId={activeId}
@@ -122,6 +120,7 @@ function Sidebar({
           onSearchChange={setSearchQuery}
           onSelect={handleSelectConversation}
           onDelete={handleDeleteConversation}
+          onNewChat={handleNewChat}
         />
       </aside>
     </>
