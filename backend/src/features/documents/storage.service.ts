@@ -5,6 +5,7 @@ import { DocumentProcessingError } from './types.js';
 
 type UploadDocumentFileInput = {
   userId: string;
+  companyId?: string | null;
   documentId: string;
   filePath: string;
   mimeType: string;
@@ -13,18 +14,27 @@ type UploadDocumentFileInput = {
 const originalPdfFilename = 'original.pdf';
 const signedUrlExpiresInSeconds = 10 * 60;
 
-function getOriginalPdfStoragePath(userId: string, documentId: string) {
+function getOriginalPdfStoragePath(
+  userId: string,
+  documentId: string,
+  companyId?: string | null,
+) {
+  if (companyId) {
+    return `ais/${companyId}/documents/${documentId}/${originalPdfFilename}`;
+  }
+
   return `${userId}/${documentId}/${originalPdfFilename}`;
 }
 
 export async function uploadDocumentFileToStorage({
   userId,
+  companyId,
   documentId,
   filePath,
   mimeType,
 }: UploadDocumentFileInput) {
   const fileBuffer = await fs.promises.readFile(filePath);
-  const storagePath = getOriginalPdfStoragePath(userId, documentId);
+  const storagePath = getOriginalPdfStoragePath(userId, documentId, companyId);
   const { error } = await getSupabaseServiceRoleClient()
     .storage.from(env.supabaseStorageBucket)
     .upload(storagePath, fileBuffer, {
@@ -68,4 +78,25 @@ export async function createDocumentPdfSignedUrl(storagePath: string) {
   return {
     signedUrl: data.signedUrl,
   };
+}
+
+export async function deleteDocumentFileFromStorage(storagePath: string | null) {
+  const normalizedStoragePath = storagePath?.trim();
+
+  if (!normalizedStoragePath) {
+    return { removed: false };
+  }
+
+  const { error } = await getSupabaseServiceRoleClient()
+    .storage.from(env.supabaseStorageBucket)
+    .remove([normalizedStoragePath]);
+
+  if (error) {
+    throw new DocumentProcessingError(
+      'The document was removed, but its storage object could not be deleted.',
+      502,
+    );
+  }
+
+  return { removed: true };
 }

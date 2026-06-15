@@ -4,6 +4,7 @@ import { getVectorStore } from './vector-store.js';
 
 type RetrievalOptions = {
   userId: string;
+  companyId: string;
   documentId?: string;
 };
 
@@ -114,8 +115,12 @@ export async function retrieveRelevantDocuments(
     throw new Error('Retrieval requires a user id.');
   }
 
+  if (!options.companyId.trim()) {
+    throw new Error('Retrieval requires a company id.');
+  }
+
   const filter = {
-    user_id: options.userId,
+    company_id: options.companyId,
     ...(options.documentId ? { document_id: options.documentId } : {}),
   };
 

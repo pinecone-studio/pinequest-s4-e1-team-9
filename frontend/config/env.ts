@@ -24,6 +24,17 @@ export const clientEnv = {
   companiesApiUrl:
     process.env.NEXT_PUBLIC_COMPANIES_API_URL ||
     `${fallbackApiOrigin}/api/companies`,
+  invitesApiUrl:
+    process.env.NEXT_PUBLIC_INVITES_API_URL || `${fallbackApiOrigin}/api/invites`,
+  preferencesApiUrl:
+    process.env.NEXT_PUBLIC_PREFERENCES_API_URL ||
+    `${fallbackApiOrigin}/api/me/preferences`,
+  profileApiUrl:
+    process.env.NEXT_PUBLIC_PROFILE_API_URL ||
+    `${fallbackApiOrigin}/api/me/profile`,
+  eventsApiBaseUrl:
+    process.env.NEXT_PUBLIC_EVENTS_API_BASE_URL ||
+    `${fallbackApiOrigin}/api/ais`,
   adminCompaniesApiUrl:
     process.env.NEXT_PUBLIC_ADMIN_COMPANIES_API_URL ||
     `${fallbackApiOrigin}/admin/companies`,

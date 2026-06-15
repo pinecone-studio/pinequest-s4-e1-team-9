@@ -1,36 +1,35 @@
 export default function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="px-6 pb-16 md:pb-24 scroll-mt-24">
-      <div className="max-w-6xl mx-auto">
-        <h2 className="text-center font-semibold text-2xl md:text-3xl text-foreground mb-8">
+    <section id="how-it-works" className="scroll-mt-24 px-4 pb-16 sm:px-6 md:pb-24">
+      <div className="mx-auto max-w-6xl">
+        <h2 className="mb-8 text-2xl font-semibold text-foreground md:text-3xl">
           How it works
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="rounded-xl border border-border p-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-card p-5">
             <p className="mb-2 text-sm font-semibold text-foreground">
-              1. Upload documents
+              1. Create an AI
             </p>
             <p className="text-sm text-muted-foreground">
-              Add PDFs, policies, and manuals. They&apos;re chunked, embedded,
-              and indexed automatically.
+              Pick a use case, define the audience, and set source-backed
+              answer behavior.
             </p>
           </div>
-          <div className="rounded-xl border border-border p-5">
+          <div className="rounded-lg border border-border bg-card p-5">
             <p className="mb-2 text-sm font-semibold text-foreground">
-              2. Invite your team
+              2. Add knowledge
             </p>
             <p className="text-sm text-muted-foreground">
-              Share an invitation code so colleagues can join your company
-              workspace.
+              Upload PDFs and monitor each document as it prepares for chat.
             </p>
           </div>
-          <div className="rounded-xl border border-border p-5">
+          <div className="rounded-lg border border-border bg-card p-5">
             <p className="mb-2 text-sm font-semibold text-foreground">
               3. Ask questions
             </p>
             <p className="text-sm text-muted-foreground">
-              Employees chat with the assistant and get answers with citations
-              back to the source PDF.
+              Members chat with the assistant and open citations back to the
+              secured source PDF.
             </p>
           </div>
         </div>

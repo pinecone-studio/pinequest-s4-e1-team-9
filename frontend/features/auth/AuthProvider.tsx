@@ -13,15 +13,25 @@ import {
   getSupabaseBrowserClient,
   hasSupabaseBrowserConfig,
 } from '@/features/auth/supabase';
+import {
+  getCurrentProfile,
+  updateCurrentProfile,
+  type UserProfile,
+} from '@/features/profile/api';
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
+  isProfileLoading: boolean;
   configError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  profile: UserProfile | null;
+  profileError: string | null;
+  refreshProfile: () => Promise<UserProfile | null>;
+  updateProfileName: (name: string) => Promise<UserProfile>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -29,6 +39,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,6 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      if (!nextSession) {
+        setProfile(null);
+        setProfileError(null);
+      }
       setConfigError(null);
     });
 
@@ -78,14 +95,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string) => {
-    const { error } = await getSupabaseBrowserClient().auth.signUp({
+  const refreshProfile = useCallback(async () => {
+    if (!session) {
+      setProfile(null);
+      return null;
+    }
+
+    setIsProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const nextProfile = await getCurrentProfile(session.access_token);
+      setProfile(nextProfile);
+      return nextProfile;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to load profile.';
+      setProfileError(message);
+      setProfile(null);
+      return null;
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      setProfile(null);
+      setIsProfileLoading(false);
+      return;
+    }
+
+    void refreshProfile().catch(() => undefined);
+  }, [refreshProfile, session]);
+
+  const signUp = useCallback(async (name: string, email: string, password: string) => {
+    const { data, error } = await getSupabaseBrowserClient().auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          name,
+          full_name: name,
+        },
+      },
     });
 
     if (error) {
       throw new Error(error.message);
+    }
+
+    const accessToken = data.session?.access_token;
+
+    if (accessToken) {
+      try {
+        const nextProfile = await updateCurrentProfile(name, accessToken);
+        setProfile(nextProfile);
+        setProfileError(null);
+      } catch {
+        throw new Error(
+          'Your account was created, but the profile name could not be saved. Please complete your profile to continue.',
+        );
+      }
     }
   }, []);
 
@@ -95,19 +166,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       throw new Error(error.message);
     }
+
+    setProfile(null);
   }, []);
+
+  const updateProfileName = useCallback(
+    async (name: string) => {
+      if (!session) {
+        throw new Error('Please sign in before updating your profile.');
+      }
+
+      const nextProfile = await updateCurrentProfile(
+        name,
+        session.access_token,
+      );
+      setProfile(nextProfile);
+      setProfileError(null);
+      return nextProfile;
+    },
+    [session],
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       user: session?.user ?? null,
       isLoading,
+      isProfileLoading,
       configError,
       signIn,
       signUp,
       signOut,
+      profile,
+      profileError,
+      refreshProfile,
+      updateProfileName,
     }),
-    [configError, isLoading, session, signIn, signOut, signUp],
+    [
+      configError,
+      isLoading,
+      isProfileLoading,
+      profile,
+      profileError,
+      refreshProfile,
+      session,
+      signIn,
+      signOut,
+      signUp,
+      updateProfileName,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

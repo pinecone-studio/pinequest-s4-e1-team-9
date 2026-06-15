@@ -66,6 +66,7 @@ function toMessage(message: ChatHistoryMessageApi): Message {
     role: message.role,
     content: message.content,
     citations: message.citations ?? [],
+    eventSources: message.eventSources ?? [],
   };
 }
 
@@ -81,9 +82,16 @@ function getConversationUrl(conversationId: string) {
   return `${chatConversationsUrl}/${encodeURIComponent(conversationId)}`;
 }
 
-export async function fetchChatConversations(): Promise<Conversation[]> {
+function withCompanyId(url: string, companyId: string) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}companyId=${encodeURIComponent(companyId)}`;
+}
+
+export async function fetchChatConversations(
+  companyId: string,
+): Promise<Conversation[]> {
   const authHeaders = await getAuthHeaders();
-  const response = await fetch(chatConversationsUrl, {
+  const response = await fetch(withCompanyId(chatConversationsUrl, companyId), {
     method: 'GET',
     headers: authHeaders,
   });
@@ -102,6 +110,7 @@ export async function fetchChatConversations(): Promise<Conversation[]> {
 }
 
 export async function fetchConversationMessages(
+  companyId: string,
   conversationId: string,
 ): Promise<Message[]> {
   if (!isValidConversationId(conversationId)) {
@@ -110,7 +119,7 @@ export async function fetchConversationMessages(
 
   const authHeaders = await getAuthHeaders();
   const response = await fetch(
-    `${getConversationUrl(conversationId)}/messages`,
+    withCompanyId(`${getConversationUrl(conversationId)}/messages`, companyId),
     {
       method: 'GET',
       headers: authHeaders,
@@ -127,6 +136,7 @@ export async function fetchConversationMessages(
 }
 
 export async function deleteChatConversation(
+  companyId: string,
   conversationId: string,
 ): Promise<DeleteConversationResponse> {
   if (!isValidConversationId(conversationId)) {
@@ -134,10 +144,13 @@ export async function deleteChatConversation(
   }
 
   const authHeaders = await getAuthHeaders();
-  const response = await fetch(getConversationUrl(conversationId), {
-    method: 'DELETE',
-    headers: authHeaders,
-  });
+  const response = await fetch(
+    withCompanyId(getConversationUrl(conversationId), companyId),
+    {
+      method: 'DELETE',
+      headers: authHeaders,
+    },
+  );
 
   const data = await readJsonResponse<DeleteConversationResponse>(response);
 
@@ -149,6 +162,7 @@ export async function deleteChatConversation(
 }
 
 export async function sendChatMessages(
+  companyId: string,
   messages: Message[],
   conversationId: string | null,
 ): Promise<ChatResponse> {
@@ -161,6 +175,7 @@ export async function sendChatMessages(
       ...authHeaders,
     },
     body: JSON.stringify({
+      companyId,
       conversationId: conversationId || null,
       messages: toApiMessages(messages),
     }),
@@ -184,6 +199,7 @@ export async function sendChatMessages(
     conversation,
     reply: rawData.reply || 'Хариулт олдсонгүй.',
     citations: rawData.citations ?? [],
+    eventSources: rawData.eventSources ?? [],
     retrieval: rawData.retrieval,
     warnings: rawData.warnings ?? [],
   };

@@ -1,13 +1,12 @@
 import { DocumentProcessingError } from '../documents/types.js';
 import * as companiesRepo from '../../db/repositories/companies.repo.js';
+import { isCompanyManager } from './roles.js';
 import type { CompanyPermissions, CompanyRole } from './types.js';
-
-const ownerRole: CompanyRole = 'OWNER';
-const adminRole: CompanyRole = 'ADMIN';
+export { isCompanyManager } from './roles.js';
 
 function permissionsForRole(role: CompanyRole | null): CompanyPermissions {
-  const isCompanyOwner = role === ownerRole;
-  const isCompanyAdmin = role === ownerRole || role === adminRole;
+  const isCompanyOwner = role === 'OWNER';
+  const isCompanyAdmin = isCompanyManager(role);
   const isCompanyMember = Boolean(role);
 
   return {
@@ -17,7 +16,8 @@ function permissionsForRole(role: CompanyRole | null): CompanyPermissions {
     canManageCompany: isCompanyAdmin,
     canUploadCompanyDocuments: isCompanyAdmin,
     canInviteCompanyUsers: isCompanyAdmin,
-    canPromoteCompanyUser: isCompanyOwner,
+    canPromoteCompanyUser: false,
+    canViewInvitationCode: isCompanyAdmin,
   };
 }
 
@@ -79,7 +79,7 @@ export async function requireCompanyMember(userId: string, companyId: string) {
   const access = await getCompanyAccess(userId, companyId);
 
   if (!access?.permissions.isCompanyMember) {
-    throw new DocumentProcessingError('Company membership required.', 403);
+    throw new DocumentProcessingError('AI membership required.', 403);
   }
 
   return access;
@@ -89,7 +89,7 @@ export async function requireCompanyAdmin(userId: string, companyId: string) {
   const access = await getCompanyAccess(userId, companyId);
 
   if (!access?.permissions.canManageCompany) {
-    throw new DocumentProcessingError('Company admin access required.', 403);
+    throw new DocumentProcessingError('AI owner access required.', 403);
   }
 
   return access;
@@ -103,7 +103,7 @@ export async function requireCompanyDocumentManager(
 
   if (!access?.permissions.canUploadCompanyDocuments) {
     throw new DocumentProcessingError(
-      'Company document admin access required.',
+      'AI owner document access required.',
       403,
     );
   }
@@ -118,7 +118,7 @@ export async function requireCompanyUserInviter(
   const access = await getCompanyAccess(userId, companyId);
 
   if (!access?.permissions.canInviteCompanyUsers) {
-    throw new DocumentProcessingError('Company invite access required.', 403);
+    throw new DocumentProcessingError('AI owner invite access required.', 403);
   }
 
   return access;
@@ -127,8 +127,8 @@ export async function requireCompanyUserInviter(
 export async function requireCompanyOwner(userId: string, companyId: string) {
   const access = await getCompanyAccess(userId, companyId);
 
-  if (!access?.permissions.canPromoteCompanyUser) {
-    throw new DocumentProcessingError('Company owner access required.', 403);
+  if (!access?.permissions.isCompanyOwner) {
+    throw new DocumentProcessingError('AI owner access required.', 403);
   }
 
   return access;

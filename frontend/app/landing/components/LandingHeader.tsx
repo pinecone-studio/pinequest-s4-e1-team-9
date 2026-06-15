@@ -1,6 +1,7 @@
 'use client';
 import { useAuth } from '@/features/auth/AuthProvider';
-import GeminiLogo from '@/features/chat/components/GeminiLogo';
+import { ProductLogo } from '@/shared/ui/product';
+import { Button } from '@/shared/ui/button';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -8,22 +9,13 @@ export default function LandingHeader() {
   const router = useRouter();
   const { session, isLoading, signOut } = useAuth();
   const isAuthenticated = !isLoading && Boolean(session);
-  const getStartedLabel = isAuthenticated ? 'Open Dashboard' : 'Sign up';
+  const getStartedLabel = isAuthenticated ? 'Open chat' : 'Try the demo';
 
   return (
-    <header className="w-full top-0 sticky z-50 flex justify-center px-6 pt-4">
-      <div
-        className="
-          flex justify-between items-center h-[60px] px-3 w-[1000px] max-w-full
-          rounded-full border border-white/10
-          bg-[#1a1a1a]/20 backdrop-blur-md
-        "
-      >
-        <Link href="/" className="flex items-center gap-2 pl-2">
-          <GeminiLogo size={26} aria-label="CompanyDoc AI" />
-          <span className="font-semibold text-[18px] tracking-tight text-white">
-            CompanyDoc AI
-          </span>
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/90 backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+        <Link href="/" className="min-w-0">
+          <ProductLogo />
         </Link>
 
         <div className="flex items-center gap-2 pr-1">
@@ -33,23 +25,17 @@ export default function LandingHeader() {
               onClick={() => {
                 void signOut();
               }}
-              className="text-white/50 text-[16px] hover:text-white transition-colors duration-200 px-3 py-1.5 border-none bg-transparent cursor-pointer"
+              className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              Log out
+              Sign out
             </button>
           )}
-          <button
+          <Button
             type="button"
-            onClick={() => router.push('/admin')}
-            className="
-              bg-white text-black text-[16px] font-semibold
-              px-4 py-1.5 rounded-full
-              hover:bg-white/90 transition-opacity
-              border-none cursor-pointer
-            "
+            onClick={() => router.push(isAuthenticated ? '/chat' : '/auth/sign-in')}
           >
             {getStartedLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </header>

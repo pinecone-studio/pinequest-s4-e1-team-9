@@ -1,257 +1,151 @@
-# pinequest-s4-e1-team-9
+# Pinequest AI
 
-AI PDF chatbot project built as a Bun monorepo with two workspaces:
+Turn private documents into secure, shareable AI assistants that teams can use instantly.
 
-- `backend`: HTTP API for chat, PDF upload, PDF ingestion, and RAG retrieval.
-- `frontend`: Next.js app for the chat and upload UI.
+This Bun monorepo contains a chat-first MVP for creating private document AIs, uploading PDF knowledge, chatting with isolated retrieval, and inviting members with short-lived codes.
 
-The real backend entrypoint is the HTTP API server in `backend/src/index.ts`.
-LangGraph is still available for experiments in `backend/src/ai/graph.ts`, but
-it is not the main application server right now.
+## Architecture
 
-## Requirements
+- `frontend`: Next.js app router UI for public landing, auth, chat, AI creation, joining, and owner management.
+- `backend`: Bun HTTP API for Supabase-authenticated chat, PDF upload/ingestion, retrieval, membership, preferences, and invitations.
+- `backend/prisma`: Prisma schema and Supabase/Postgres migrations.
+- Supabase Auth provides email/password sessions. The browser only uses the anon key.
+- Supabase Storage keeps original PDFs in a private bucket. Backend routes verify membership before creating signed PDF URLs.
+- Retrieval is AI-scoped by `company_id` in `document_chunks`; the existing `companies` table is used as the AI workspace table.
 
-- Bun `1.3.14` or newer
-- Node.js `20.16.0` through `24.x`
-
-## Setup
-
-Install dependencies from the repo root:
+## Local Setup
 
 ```bash
 bun install
-```
-
-Create local environment files:
-
-```bash
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
 ```
 
-Fill in the backend values in `backend/.env`:
+Fill in Supabase, database, Google embedding, and Groq chat values in `backend/.env`. Fill in the public Supabase anon values in `frontend/.env.local`.
 
-```txt
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET=user-documents
-FRONTEND_ORIGIN=http://localhost:3000
-CHAT_RATE_LIMIT_PER_MINUTE=20
-UPLOAD_RATE_LIMIT_PER_MINUTE=5
-DEFAULT_USER_ID=00000000-0000-4000-8000-000000000000
-PDF_MAX_FILE_SIZE_BYTES=26214400
-CHAT_MAX_HISTORY_MESSAGES=10
-CHAT_MAX_MESSAGE_CHARS=4000
-RAG_RETRIEVAL_MATCH_COUNT=5
-RAG_MAX_CONTEXT_CHARS=12000
-RAG_MAX_SOURCE_CHARS=2500
-GOOGLE_API_KEY=
-GROQ_API_KEY=
-DATABASE_URL=
-DIRECT_URL=
-```
+Required server-only variables include:
 
-The frontend local API defaults should point at the backend dev server:
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORAGE_BUCKET`
+- `DATABASE_URL`
+- `GOOGLE_API_KEY`
+- `GROQ_API_KEY`
+- `INVITE_CODE_PEPPER`
+- `PUBLIC_APP_URL`
 
-```txt
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_CHAT_API_URL=http://localhost:4000/chat
-NEXT_PUBLIC_UPLOAD_API_URL=http://localhost:4000/upload
-NEXT_PUBLIC_DOCUMENTS_API_URL=http://localhost:4000/documents
-NEXT_PUBLIC_CHAT_MAX_HISTORY_MESSAGES=10
-```
+Frontend public variables:
 
-Supabase Auth is enabled for the HTTP API. The frontend signs users in with
-Supabase Auth and sends `Authorization: Bearer <access_token>` to `/upload` and
-`/chat`. The backend derives `user_id` from that session. `DEFAULT_USER_ID` is
-kept only for local/manual scripts.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_CHAT_API_URL`
+- `NEXT_PUBLIC_DOCUMENTS_API_URL`
+- `NEXT_PUBLIC_COMPANIES_API_URL`
+- `NEXT_PUBLIC_INVITES_API_URL`
+- `NEXT_PUBLIC_PREFERENCES_API_URL`
+- `NEXT_PUBLIC_ADMIN_COMPANIES_API_URL`
 
-PDF uploads are intentionally strict:
+## Supabase Requirements
 
-- only `.pdf` files are accepted
-- MIME type must be PDF
-- file header must start with `%PDF-`
-- empty files are rejected
-- default max size is 25 MB
+- Email/password auth enabled; email confirmation may be disabled for demos.
+- Private storage bucket, default `user-documents`.
+- `pgvector` available for `document_chunks.embedding`.
+- Migrations applied from `backend/prisma/migrations`.
+- Backend service-role key must stay server-side only.
 
-Chat/RAG requests are also budgeted:
-
-- only the newest chat messages are sent to the model
-- long chat messages are trimmed before inference
-- retrieval is filtered to the current request user
-- retrieved PDF context is capped before it enters the prompt
-- `/chat` rejects oversized request bodies, too many messages, and messages
-  over the configured character limit
-- `/chat` and `/upload` are rate-limited per authenticated user
-- `/chat` returns `reply`, structured `citations`, retrieval metadata, and
-  non-sensitive warnings
-
-## Auth And Ownership
-
-The backend enforces the ownership shape that Supabase Auth and RLS depend on:
-
-- `user_documents` rows always belong to a `user_id`
-- `document_chunks` rows require both `user_id` and `document_id`
-- document chunks are constrained to a matching owned `user_documents` row
-- uploads create a `user_documents` record before chunks are stored
-- retrieval requires a user-scoped `user_id` filter
-- chat messages are written to `chat_messages` with `user_id` and optional
-  `conversation_id`
-- service-role Supabase keys are backend-only environment variables
-- original PDF files are uploaded to the private `user-documents` storage
-  bucket under `user_id/document_id/original.pdf`
-- signed PDF links are generated by the backend after checking document
-  ownership
-- RLS policies allow users to access only their own `user_documents`,
-  document chunks through owned documents, own `chat_messages`, and private
-  storage paths
-
-## Development Commands
-
-Run the full local app:
-
-```bash
-bun run dev
-```
-
-This starts:
-
-- Backend HTTP API: `http://localhost:4000`
-- Frontend Next.js app: `http://localhost:3000`
-
-Run only the frontend:
-
-```bash
-bun run dev:frontend
-```
-
-Run only the backend HTTP API:
-
-```bash
-bun run dev:backend
-```
-
-Run the backend chatbot server directly:
-
-```bash
-bun run dev:chatbot
-```
-
-Run the optional LangGraph dev server:
-
-```bash
-bun run --cwd backend langgraph:dev
-```
-
-## Checks
-
-Format check:
-
-```bash
-bun run format:check
-```
-
-Lint:
-
-```bash
-bun run lint
-```
-
-Typecheck:
-
-```bash
-bun run typecheck
-```
-
-Build:
-
-```bash
-bun run build
-```
-
-Tests:
-
-```bash
-bun run test
-```
-
-Note: test scripts exist, but the project does not currently contain Jest test
-files yet.
-
-## Database Migrations
-
-`bun run build` does not apply database migrations.
-
-Apply migrations only when intentionally updating the database:
+Apply migrations when intentionally updating the configured database:
 
 ```bash
 bun run db:migrate
 ```
 
-## Backend Scripts
+The new secure invitation migration adds `invite_codes`, `invite_redemptions`, `user_preferences`, `company_members.invitation_id`, and `companies.archived_at`.
 
-From the repo root:
-
-```bash
-bun run --cwd backend dev
-bun run --cwd backend start
-bun run --cwd backend build
-bun run --cwd backend db:migrate
-bun run --cwd backend langgraph:dev
-```
-
-`backend:start` expects compiled output, so run `bun run --cwd backend build`
-first.
-
-## Backend Source Layout
-
-```txt
-backend/src/
-  config/      environment loading and config helpers
-  server/      HTTP server, CORS, JSON/error helpers
-  routes/      thin HTTP route handlers
-  features/    chat, document ingestion, and retrieval services
-  ai/          Groq, Gemini embeddings, and optional LangGraph graph
-  db/          Prisma client and repositories
-  scripts/     local/manual backend scripts
-  index.ts     real HTTP API entrypoint
-```
-
-## Frontend Scripts
-
-From the repo root:
+## Run Locally
 
 ```bash
-bun run --cwd frontend dev
-bun run --cwd frontend build
-bun run --cwd frontend start
-bun run --cwd frontend lint
-bun run --cwd frontend typecheck
+bun run dev
 ```
 
-## Frontend Source Layout
-
-```txt
-frontend/
-  app/         Next.js routes only
-  config/      client environment defaults
-  features/    chat and document feature modules
-  shared/      reusable UI, lib helpers, and shared types
-```
-
-## Docker Backend
-
-The backend Dockerfile builds the backend and starts the compiled HTTP server:
+Or run separately:
 
 ```bash
-cd backend
-docker build -t pinequest-backend .
-docker run --env-file .env -p 4000:4000 pinequest-backend
+bun run dev:backend
+bun run dev:frontend
 ```
 
-## Team Rule
+Default URLs:
 
-Use Bun commands only for this project. Do not use npm, pnpm, or yarn unless the
-team intentionally changes the package manager.
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:4000`
+
+## Core Routes
+
+- `/` public presentation page
+- `/auth/sign-in`, `/auth/sign-up`
+- `/chat`
+- `/chat/[companyId]`
+- `/chat/[companyId]/[conversationId]`
+- `/create-ai`
+- `/join`
+- `/join/[code]`
+- `/ai/[companyId]/manage`
+- `/ai/[companyId]/documents`
+- `/ai/[companyId]/members`
+- `/ai/[companyId]/invites`
+- `/ai/[companyId]/settings`
+
+Legacy dashboard routes redirect or remain as compatibility aliases.
+
+## Role Model
+
+Roles are scoped per AI:
+
+- `OWNER`: chat, edit AI settings/behavior, upload/delete documents, view members, remove members, generate/revoke invitations, archive AI.
+- `MEMBER`: chat, view/download documents and cited PDFs, manage only their own conversations, leave joined AIs.
+
+Legacy `ADMIN` rows are treated as members by the current permission helpers.
+
+## Security Assumptions
+
+- Every AI-scoped backend route authenticates the user and verifies membership.
+- Owner mutations additionally verify owner permissions.
+- Conversation history is server-backed in `chat_messages` and scoped by `user_id`, `company_id`, and `conversation_id`.
+- Retrieval passes an explicit `company_id` filter to Supabase vector search.
+- Invitation codes are HMAC-SHA256 hashed with `INVITE_CODE_PEPPER`; raw codes are shown only immediately after generation.
+- Invitation expiration is fixed at 15 minutes.
+
+## Checks
+
+```bash
+bun run lint
+bun run typecheck
+bun run test
+bun run build
+```
+
+`bun test` invokes Bun’s separate test runner. The repo’s backend tests are Jest tests that use `jest.doMock`, so use `bun run test` for the configured test suite.
+
+## Demo Setup
+
+Create two Supabase Auth users manually or through your existing demo process:
+
+- Owner account
+- Member account
+
+As the owner:
+
+1. Sign in.
+2. Create an AI from `/create-ai`.
+3. Configure identity, behavior, and suggested questions.
+4. Upload PDFs or leave it documentless for a generic private assistant.
+5. Open `/ai/[companyId]/invites` and generate a 15-minute invitation.
+6. Share the raw code/link immediately.
+
+As the member:
+
+1. Open `/join/[code]`.
+2. Sign in or sign up.
+3. Join the AI.
+4. Open chat and verify management routes are denied.

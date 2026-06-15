@@ -1,9 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { env } from '../config/env.js';
-import { getAuthenticatedUserId } from '../features/auth/auth.service.js';
+import { getAuthenticatedUser } from '../features/auth/auth.service.js';
 import { generateChatResponse } from '../features/chat/chat.service.js';
 import { validateChatRequestBody } from '../features/chat/validation.js';
+import { requireCompanyMember } from '../features/companies/authorization.service.js';
 import { DocumentProcessingError } from '../features/documents/types.js';
+import { ensureUserProfile } from '../features/profiles/profile.service.js';
 import { auditFailure } from '../server/audit.js';
 import { readJsonBody, sendJson } from '../server/errors.js';
 import { enforceRateLimit } from '../server/rate-limit.js';
@@ -30,7 +32,8 @@ export async function handleChatRoute(
   let userId: string | null = null;
 
   try {
-    userId = await getAuthenticatedUserId(req);
+    const user = await getAuthenticatedUser(req);
+    userId = user.id;
     enforceRateLimit({
       key: `chat:${userId}`,
       limit: env.chatRateLimitPerMinute,
@@ -40,10 +43,23 @@ export async function handleChatRoute(
     const body = await readJsonBody(req, {
       maxBytes: getMaxChatRequestBytes(),
     });
-    const { messages, conversationId } = validateChatRequestBody(body);
+    const { companyId, messages, conversationId } =
+      validateChatRequestBody(body);
+
+    await requireCompanyMember(userId, companyId);
+    const profile = await ensureUserProfile(user);
+
+    if (profile.requiresNameCompletion) {
+      throw new DocumentProcessingError(
+        'Complete your profile name before chatting.',
+        403,
+      );
+    }
 
     const result = await generateChatResponse(messages, {
       userId,
+      companyId,
+      userName: profile.name,
       conversationId,
     });
     sendJson(res, 200, result, headers);

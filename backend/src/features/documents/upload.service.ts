@@ -41,6 +41,7 @@ export async function ingestUploadedPdf({
 
     const storagePath = await uploadDocumentFileToStorage({
       userId,
+      companyId,
       documentId: userDocument.id,
       filePath: uploadedFile.filepath,
       mimeType: uploadedFile.mimeType,

@@ -2,17 +2,23 @@
 
 import { uploadDocument } from '@/features/documents/api';
 import { PDF_ACCEPT } from '@/shared/types/documents';
+import { Button } from '@/shared/ui/button';
+import {
+  Alert,
+  SectionHeader,
+  StatusPill,
+  Surface,
+} from '@/shared/ui/product';
 import {
   AlertCircle,
   CheckCircle2,
-  FileUp,
+  FileText,
   Loader2,
-  Sparkles,
   Upload,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 
-type UploadState = 'idle' | 'ready' | 'uploading' | 'success' | 'error';
+type UploadState = 'idle' | 'queued' | 'uploading' | 'processing' | 'ready' | 'failed';
 
 function isBackendAcceptedPdf(file: File) {
   const hasPdfExtension = file.name.toLowerCase().endsWith('.pdf');
@@ -22,16 +28,31 @@ function isBackendAcceptedPdf(file: File) {
   return hasPdfExtension && hasPdfMime;
 }
 
-function statusClass(state: UploadState) {
-  if (state === 'success') return 'text-[#00e5cc]';
-  if (state === 'error') return 'text-destructive';
-  return 'text-zinc-400';
+function stateLabel(state: UploadState) {
+  const labels: Record<UploadState, string> = {
+    idle: 'No file selected',
+    queued: 'Queued',
+    uploading: 'Uploading',
+    processing: 'Processing',
+    ready: 'Ready',
+    failed: 'Failed',
+  };
+
+  return labels[state];
+}
+
+function stateTone(state: UploadState) {
+  if (state === 'ready') return 'success';
+  if (state === 'failed') return 'error';
+  if (state === 'queued') return 'warning';
+  if (state === 'uploading' || state === 'processing') return 'info';
+  return 'neutral';
 }
 
 export default function UploadDocumentPanel() {
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<UploadState>('idle');
-  const [status, setStatus] = useState('Select a PDF to prepare ingestion.');
+  const [status, setStatus] = useState('Choose a PDF to upload.');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,31 +62,33 @@ export default function UploadDocumentPanel() {
 
     if (!isBackendAcceptedPdf(selectedFile)) {
       setFile(null);
-      setState('error');
-      setStatus('Only real PDF files are accepted right now.');
+      setState('failed');
+      setStatus('Only PDF files are accepted.');
       e.target.value = '';
       return;
     }
 
     setFile(selectedFile);
-    setState('ready');
-    setStatus(`${selectedFile.name} is ready to upload.`);
+    setState('queued');
+    setStatus(`${selectedFile.name} is queued for upload.`);
   };
 
   const uploadFile = async () => {
-    if (!file || state === 'uploading') return;
+    if (!file || state === 'uploading' || state === 'processing') return;
 
     setState('uploading');
-    setStatus('Uploading and processing PDF...');
+    setStatus('Uploading the PDF...');
 
     try {
+      setState('processing');
+      setStatus('Processing the PDF so it can be used as a source.');
       await uploadDocument(file);
-      setState('success');
-      setStatus('PDF uploaded, parsed, chunked, embedded, and indexed.');
+      setState('ready');
+      setStatus('PDF uploaded and queued for source-backed answers.');
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
     } catch (error) {
-      setState('error');
+      setState('failed');
       setStatus(
         error instanceof Error
           ? error.message
@@ -74,68 +97,64 @@ export default function UploadDocumentPanel() {
     }
   };
 
-  const statusIcon =
-    state === 'success' ? (
-      <CheckCircle2 size={15} />
-    ) : state === 'error' ? (
-      <AlertCircle size={15} />
-    ) : null;
-
   return (
-    <div className="w-full max-w-lg flex flex-col bg-zinc-900 rounded-lg border border-zinc-700/50 overflow-hidden shadow-2xl">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-700/50 bg-zinc-900/80">
-        <div className="w-8 h-8 rounded-lg bg-amber-400/10 border border-amber-400/20 flex items-center justify-center">
-          <Sparkles size={15} className="text-amber-400" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-zinc-100 tracking-wide">
-            Research Docs
-          </p>
-          <p className="text-[11px] text-zinc-500">PDF Ingestion</p>
-        </div>
-      </div>
-
-      <div className="p-6 flex flex-col gap-4">
-        <label className="flex flex-col items-center justify-center w-full min-h-40 border-2 border-zinc-700 border-dashed rounded-lg cursor-pointer bg-zinc-800 hover:bg-zinc-700 transition-colors">
-          <div className="flex flex-col items-center justify-center px-4 py-6 text-center">
-            <Upload size={30} className="text-zinc-500 mb-2" />
-            <p className="m-0 text-sm text-zinc-300 break-all">
-              {file ? file.name : 'PDF upload'}
-            </p>
-            <p className="m-0 mt-1 text-[11px] text-zinc-500">
-              application/pdf
-            </p>
-          </div>
+    <Surface className="w-full max-w-xl overflow-hidden">
+      <SectionHeader
+        title="Upload PDF"
+        description="Add a source document for the current authenticated workspace."
+      />
+      <div className="grid gap-4 p-4">
+        <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-[var(--surface-2)] p-6 text-center transition-colors hover:bg-[var(--surface-3)]">
+          <Upload className="size-7 text-muted-foreground" aria-hidden="true" />
+          <span className="mt-3 max-w-full truncate text-sm font-medium">
+            {file ? file.name : 'Choose a PDF'}
+          </span>
+          <span className="mt-1 text-xs text-muted-foreground">
+            Supported format: PDF
+          </span>
           <input
             ref={inputRef}
             type="file"
-            className="hidden"
+            className="sr-only"
             onChange={handleFileChange}
             accept={PDF_ACCEPT}
           />
         </label>
 
-        <button
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-[var(--surface-2)] p-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">
+                {file?.name ?? 'No PDF selected'}
+              </p>
+              <p className="text-xs text-muted-foreground">{status}</p>
+            </div>
+          </div>
+          <StatusPill tone={stateTone(state)}>{stateLabel(state)}</StatusPill>
+        </div>
+
+        <Button
           type="button"
           onClick={uploadFile}
-          disabled={!file || state === 'uploading'}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-amber-400/10 border border-amber-400/20 text-amber-400 hover:bg-amber-400/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          disabled={!file || state === 'uploading' || state === 'processing'}
         >
-          {state === 'uploading' ? (
-            <Loader2 size={16} className="animate-spin" />
+          {state === 'uploading' || state === 'processing' ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : state === 'ready' ? (
+            <CheckCircle2 className="size-4" aria-hidden="true" />
+          ) : state === 'failed' ? (
+            <AlertCircle className="size-4" aria-hidden="true" />
           ) : (
-            <FileUp size={16} />
+            <Upload className="size-4" aria-hidden="true" />
           )}
-          {state === 'uploading' ? 'Processing' : 'Upload PDF'}
-        </button>
+          {state === 'uploading' || state === 'processing'
+            ? 'Preparing PDF...'
+            : 'Upload PDF'}
+        </Button>
 
-        <p
-          className={`m-0 flex items-center justify-center gap-2 text-center text-sm ${statusClass(state)}`}
-        >
-          {statusIcon}
-          <span>{status}</span>
-        </p>
+        {state === 'failed' && <Alert variant="error">{status}</Alert>}
       </div>
-    </div>
+    </Surface>
   );
 }

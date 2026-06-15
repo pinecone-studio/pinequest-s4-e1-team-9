@@ -12,6 +12,7 @@ const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const chatRequestSchema = z.object({
+  companyId: z.string().regex(uuidPattern),
   conversationId: z.string().regex(uuidPattern).nullable().optional(),
   messages: z
     .array(chatMessageSchema)
@@ -21,6 +22,7 @@ const chatRequestSchema = z.object({
 });
 
 export type ValidatedChatRequest = {
+  companyId: string;
   conversationId: string | null;
   messages: ChatMessage[];
 };
@@ -30,12 +32,13 @@ export function validateChatRequestBody(body: unknown): ValidatedChatRequest {
 
   if (!parsed.success) {
     throw new DocumentProcessingError(
-      'Invalid chat request. Messages must be non-empty, within length limits, and use a valid conversation id.',
+      'Invalid chat request. A valid company id and non-empty messages are required.',
       400,
     );
   }
 
   return {
+    companyId: parsed.data.companyId,
     conversationId: parsed.data.conversationId ?? null,
     messages: parsed.data.messages,
   };

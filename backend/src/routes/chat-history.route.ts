@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getAuthenticatedUserId } from '../features/auth/auth.service.js';
+import { requireCompanyMember } from '../features/companies/authorization.service.js';
 import { DocumentProcessingError } from '../features/documents/types.js';
 import { sendJson } from '../server/errors.js';
 
@@ -24,6 +25,14 @@ function assertValidConversationId(conversationId: string | null) {
   return conversationId;
 }
 
+function assertValidCompanyId(companyId: string | null) {
+  if (!companyId || !uuidPattern.test(companyId)) {
+    throw new DocumentProcessingError('Invalid company id.', 400);
+  }
+
+  return companyId;
+}
+
 export async function handleChatHistoryRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -46,12 +55,18 @@ export async function handleChatHistoryRoute(
 
   try {
     const userId = await getAuthenticatedUserId(req);
+    const companyId = assertValidCompanyId(
+      requestUrl.searchParams.get('companyId'),
+    );
+
+    await requireCompanyMember(userId, companyId);
+
     const chatMessagesRepo =
       await import('../db/repositories/chat-messages.repo.js');
 
     if (isConversationList) {
       const conversations =
-        await chatMessagesRepo.listUserConversations(userId);
+        await chatMessagesRepo.listUserConversations(userId, companyId);
 
       sendJson(res, 200, { conversations }, headers);
       return true;
@@ -63,6 +78,7 @@ export async function handleChatHistoryRoute(
       );
       const messages = await chatMessagesRepo.getConversationMessages(
         userId,
+        companyId,
         conversationId,
       );
 
@@ -79,6 +95,7 @@ export async function handleChatHistoryRoute(
     );
     const exists = await chatMessagesRepo.conversationExistsForUser(
       userId,
+      companyId,
       conversationId,
     );
 
@@ -88,6 +105,7 @@ export async function handleChatHistoryRoute(
 
     const result = await chatMessagesRepo.deleteConversationMessages(
       userId,
+      companyId,
       conversationId,
     );
 

@@ -1,33 +1,40 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, Building2, FileText, RefreshCw } from 'lucide-react';
+import { AlertCircle, Bot, FileText, RefreshCw } from 'lucide-react';
 import { useAdminCompanies } from '@/features/admin/hooks/useAdminCompanies';
+import { formatCompanyRole } from '@/features/companies/types';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import AdminCompaniesPanel from './AdminCompaniesPanel';
 import AdminDocumentPanel from './AdminDocumentPanel';
 import AdminGate from './AdminGate';
 
-type AdminTab = 'company' | 'documents';
+type AdminTab = 'workspaces' | 'documents';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<AdminTab>('company');
+  const [activeTab, setActiveTab] = useState<AdminTab>('workspaces');
   const companiesState = useAdminCompanies();
+  const { fetchCompanies, isFetchingCompanies } = companiesState;
   const selectedCompany = companiesState.companies.find(
     (company) => company.id === companiesState.selectedCompanyId,
   );
   const hasCompanies = companiesState.companies.length > 0;
 
   useEffect(() => {
-    void companiesState.fetchCompanies();
-  }, [companiesState.fetchCompanies]);
+    void fetchCompanies();
+  }, [fetchCompanies]);
 
   useEffect(() => {
-    if (!companiesState.isFetchingCompanies && !hasCompanies) {
-      setActiveTab('company');
+    if (!isFetchingCompanies && !hasCompanies) {
+      setActiveTab('workspaces');
     }
-  }, [companiesState.isFetchingCompanies, hasCompanies]);
+  }, [isFetchingCompanies, hasCompanies]);
+
+  const handleManageCompany = (companyId: string) => {
+    companiesState.setSelectedCompanyId(companyId);
+    setActiveTab('documents');
+  };
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
@@ -35,10 +42,10 @@ export default function AdminDashboard() {
         <header className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-normal">
-              Admin Dashboard
+              Dashboard
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create companies, copy invite codes, and upload company PDFs.
+              Create or join document AI workspaces, then chat with their PDFs.
             </p>
           </div>
 
@@ -50,17 +57,17 @@ export default function AdminDashboard() {
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === 'company'}
-              onClick={() => setActiveTab('company')}
+              aria-selected={activeTab === 'workspaces'}
+              onClick={() => setActiveTab('workspaces')}
               className={cn(
                 'flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors md:flex-none',
-                activeTab === 'company'
+                activeTab === 'workspaces'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <Building2 className="size-4" aria-hidden="true" />
-              Companies
+              <Bot className="size-4" aria-hidden="true" />
+              AI Workspaces
             </button>
             <button
               type="button"
@@ -76,7 +83,7 @@ export default function AdminDashboard() {
               )}
             >
               <FileText className="size-4" aria-hidden="true" />
-              Documents
+              Management
             </button>
           </div>
         </header>
@@ -84,7 +91,7 @@ export default function AdminDashboard() {
         <section className="flex flex-col gap-3 rounded-lg border border-border bg-sidebar p-4 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0 flex-1">
             <label className="mb-1 block text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Active company
+              Active workspace
             </label>
             {hasCompanies ? (
               <select
@@ -98,14 +105,14 @@ export default function AdminDashboard() {
               >
                 {companiesState.companies.map((company) => (
                   <option key={company.id} value={company.id}>
-                    {company.name} ({company.role})
+                    {company.name} ({formatCompanyRole(company.role)})
                   </option>
                 ))}
               </select>
             ) : (
               <div className="flex min-h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground">
                 <AlertCircle className="size-4" aria-hidden="true" />
-                No companies yet.
+                No AI workspaces yet.
               </div>
             )}
           </div>
@@ -143,11 +150,14 @@ export default function AdminDashboard() {
             </AdminGate>
           ) : (
             <div className="rounded-lg border border-border bg-sidebar p-6 text-sm text-muted-foreground">
-              Create a company before uploading documents.
+              Create or join an AI workspace before managing documents.
             </div>
           )
         ) : (
-          <AdminCompaniesPanel companiesState={companiesState} />
+          <AdminCompaniesPanel
+            companiesState={companiesState}
+            onManageCompany={handleManageCompany}
+          />
         )}
       </div>
     </main>

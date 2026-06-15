@@ -1,45 +1,254 @@
 'use client';
 
-import { useAuth } from '@/features/auth/AuthProvider';
-import GeminiLogo from '@/features/chat/components/GeminiLogo';
-import { Eye, EyeOff, Lock, LogIn, Mail, User, UserPlus } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  FileText,
+  Lock,
+  Mail,
+  ShieldCheck,
+  UserCircle,
+  UserPlus,
+} from 'lucide-react';
+import { useAuth } from '@/features/auth/AuthProvider';
+import { Button } from '@/shared/ui/button';
+import { Input } from '@/shared/ui/input';
+import {
+  Alert,
+  FormField,
+  LoadingState,
+  ProductLogo,
+  StatusPill,
+  Surface,
+} from '@/shared/ui/product';
 
 type AuthMode = 'sign-in' | 'sign-up';
 
-export default function AuthGate({ children }: { children: React.ReactNode }) {
+function AuthTextInput({
+  className = '',
+  ...props
+}: React.ComponentProps<'input'>) {
+  return (
+    <input
+      className={[
+        'h-9 w-full min-w-0 rounded-lg border border-input bg-input px-3 py-1 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/35 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60 md:text-sm',
+        className,
+      ].join(' ')}
+      {...props}
+    />
+  );
+}
+
+function validateDisplayName(value: string) {
+  const name = value.replace(/\s+/g, ' ').trim();
+
+  if (name.length < 2) {
+    return 'Name must be at least 2 characters.';
+  }
+
+  if (name.length > 80) {
+    return 'Name must be 80 characters or fewer.';
+  }
+
+  return null;
+}
+
+function ProfileCompletionScreen({
+  initialName,
+  onSave,
+}: {
+  initialName: string;
+  onSave: (name: string) => Promise<unknown>;
+}) {
+  const [value, setValue] = useState(initialName);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const validation = validateDisplayName(value);
+
+    if (validation) {
+      setError(validation);
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await onSave(value);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Failed to save profile.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-background px-4 py-8 text-foreground">
+      <Surface className="w-full max-w-md p-5 sm:p-6">
+        <div className="mb-5">
+          <ProductLogo />
+          <h1 className="mt-5 text-xl font-semibold">Complete your profile</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Add the name other members and AI owners should see before you continue.
+          </p>
+        </div>
+
+        {error && (
+          <Alert variant="error" className="mb-4">
+            {error}
+          </Alert>
+        )}
+
+        <form className="grid gap-4" onSubmit={submit}>
+          <FormField id="complete-profile-name" label="Name" error={error ?? undefined}>
+            <Input
+              id="complete-profile-name"
+              value={value}
+              minLength={2}
+              maxLength={80}
+              autoComplete="name"
+              onChange={(event) => {
+                setValue(event.target.value);
+                setError(null);
+              }}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'complete-profile-name-error' : undefined}
+              required
+            />
+          </FormField>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save and continue'}
+          </Button>
+        </form>
+      </Surface>
+    </div>
+  );
+}
+
+export default function AuthGate({
+  children,
+  initialMode = 'sign-in',
+  authenticatedRedirectTo,
+}: {
+  children: React.ReactNode;
+  initialMode?: AuthMode;
+  authenticatedRedirectTo?: string;
+}) {
   const router = useRouter();
-  const { session, isLoading, signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<AuthMode>('sign-in');
-  const [fullName, setFullName] = useState('');
+  const {
+    session,
+    isLoading,
+    isProfileLoading,
+    configError,
+    profile,
+    profileError,
+    refreshProfile,
+    signIn,
+    signUp,
+    updateProfileName,
+  } = useAuth();
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (
+      session &&
+      profile &&
+      !profile.requiresNameCompletion &&
+      authenticatedRedirectTo
+    ) {
+      router.replace(authenticatedRedirectTo);
+    }
+  }, [authenticatedRedirectTo, profile, router, session]);
+
   if (isLoading) {
     return (
-      <div className="grid h-screen place-items-center bg-[#0A0A0A] text-sm text-[#8e9192]">
-        Loading session...
+      <div className="min-h-screen bg-background p-4">
+        <LoadingState label="Checking your session..." className="min-h-[calc(100vh-2rem)]" />
       </div>
     );
   }
 
-  if (session) return children;
+  if (session) {
+    if (isProfileLoading) {
+      return (
+        <div className="min-h-screen bg-background p-4">
+          <LoadingState label="Loading your profile..." className="min-h-[calc(100vh-2rem)]" />
+        </div>
+      );
+    }
+
+    if (profileError && !profile) {
+      return (
+        <div className="grid min-h-screen place-items-center bg-background px-4">
+          <div className="w-full max-w-md">
+            <Alert variant="error" title="Profile could not load" className="mb-4">
+              {profileError}
+            </Alert>
+            <Button type="button" onClick={() => void refreshProfile()} className="w-full">
+              Retry
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    if (profile?.requiresNameCompletion) {
+      return (
+        <ProfileCompletionScreen
+          initialName={profile.name}
+          onSave={updateProfileName}
+        />
+      );
+    }
+
+    if (authenticatedRedirectTo) {
+      return (
+        <div className="min-h-screen bg-background p-4">
+          <LoadingState label="Opening your workspace..." className="min-h-[calc(100vh-2rem)]" />
+        </div>
+      );
+    }
+
+    return children;
+  }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setStatus(null);
+
     try {
       if (mode === 'sign-in') {
         await signIn(email, password);
-        router.push('/landing');
       } else {
-        await signUp(email, password);
-        router.push('/landing');
+        const validation = validateDisplayName(name);
+        if (validation) {
+          setStatus(validation);
+          return;
+        }
+        await signUp(name, email, password);
+      }
+      if (authenticatedRedirectTo) {
+        router.replace(authenticatedRedirectTo);
+      } else {
+        router.refresh();
       }
     } catch (err: unknown) {
       setStatus(err instanceof Error ? err.message : 'Something went wrong.');
@@ -48,292 +257,189 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
   };
 
-  if (mode === 'sign-up') {
-    return (
-      <div className="min-h-screen bg-[#0A0A0A] text-[#e5e2e1] flex flex-col items-center justify-center p-4 md:p-12 antialiased">
-        <div className="w-full max-w-md bg-[#171717] border border-[#262626] rounded-xl p-10 shadow-none">
-          <div className="mb-10 text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#2a2a2a] border border-[#444748] mb-4">
-              <GeminiLogo size={20} aria-label="Gemini" />
-            </div>
-
-            <h1 className="text-2xl md:text-[32px] md:leading-[40px] font-semibold tracking-tight text-white mb-2">
-              Create your account
-            </h1>
-            <p className="text-[16px] leading-[24px] text-[#c4c7c8]">
-              Start building or join your company's AI document assistant.
-            </p>
-          </div>
-
-          {status && (
-            <div className="mb-6 text-sm text-[#c4c7c8] bg-[#1c1b1b] border border-[#444748] rounded px-4 py-3">
-              {status}
-            </div>
-          )}
-
-          <form className="space-y-5" onSubmit={submit}>
-            <div className="space-y-2">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="w-4 h-4 text-[#444748]" />
-                </div>
-                <input
-                  id="fullName"
-                  type="text"
-                  required
-                  placeholder="Full Name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded-full h-11 pl-10 pr-4 transition-colors placeholder:text-[#7d7b7b] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="w-4 h-4 text-[#444748]" />
-                </div>
-                <input
-                  id="workEmail"
-                  type="email"
-                  required
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded-full h-11 pl-10 pr-4 transition-colors placeholder:text-[#7d7b7b] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="w-4 h-4 text-[#444748]" />
-                </div>
-                <input
-                  id="signupPassword"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-white text-[16px] leading-[24px] rounded-full h-11 pl-10 pr-12 transition-colors placeholder:text-[#7d7b7b] outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#444748] hover:text-[#c4c7c8] transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-[#FAFAFA] text-[#0A0A0A] text-[16px] leading-[24px] font-medium h-11 rounded-full mt-5 hover:bg-[#e2e2e2] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <span className="animate-pulse">Creating account...</span>
-              ) : (
-                <>
-                  Create account
-                  <UserPlus className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="mt-10 text-center text-[14px] leading-[20px] text-[#c4c7c8]">
-            Already have an account?{' '}
-            <button
-              type="button"
-              onClick={() => {
-                setMode('sign-in');
-                setStatus(null);
-              }}
-              className="text-white hover:underline transition-all ml-1"
-            >
-              Sign in
-            </button>
-          </p>
-        </div>
-
-        <div className="mt-6 flex items-center justify-center gap-2 max-w-md text-center">
-          <p className="text-[14px] leading-[20px] text-[#444748]">
-            Secure access. Company documents stay private to your workspace.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const isSignUp = mode === 'sign-up';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#131313] text-[#e5e2e1] antialiased">
-      <header className="w-full sticky top-0 z-50 bg-[#0e0e0e] border-b border-[#444748]">
-        <div className="flex justify-between items-center h-16 px-6 max-w-screen-xl mx-auto">
-          <div className="flex items-center gap-2">
-            <GeminiLogo size={26} aria-label="Gemini" />
-            <span className="font-bold text-[#c4c7c8] tracking-tight text-base">
-              CompanyDoc AI
-            </span>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-6xl flex-col">
+        <header className="flex min-h-14 items-center justify-between">
+          <ProductLogo />
+          <StatusPill tone="success">
+            <ShieldCheck className="mr-1 size-3.5" aria-hidden="true" />
+            Private workspace
+          </StatusPill>
+        </header>
 
-      <main className="flex-grow flex flex-col md:flex-row w-full">
-        <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-[#131313] min-h-[calc(100vh-64px)]">
-          <div className="w-full max-w-[400px]">
-            <div className="mb-10">
-              <h1 className="text-[32px] leading-[40px] font-semibold tracking-tight text-[#e5e2e1] mb-2">
-                Welcome back
-              </h1>
-              <p className="text-[16px] leading-[24px] text-[#c4c7c8]">
-                Sign in to access your company AI workspace.
+        <main className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(380px,440px)]">
+          <section className="max-w-2xl">
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Document AI platform
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-normal text-foreground sm:text-5xl">
+              Secure answers from the documents your team trusts.
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
+              Create AI assistants, upload source PDFs, invite members, and keep
+              every chat scoped to the right workspace.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                ['Create AIs', 'Guided setup'],
+                ['Upload PDFs', 'Source-backed answers'],
+                ['Invite safely', 'Owner and Member roles'],
+              ].map(([title, detail]) => (
+                <div
+                  key={title}
+                  className="rounded-lg border border-border bg-card p-3"
+                >
+                  <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <p className="mt-2 text-sm font-medium">{title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <Surface className="p-5 sm:p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold">
+                {isSignUp ? 'Create your account' : 'Sign in'}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {isSignUp
+                  ? 'Start a workspace or join one with an invitation code.'
+                  : 'Open your dashboard, chats, and AI management tools.'}
               </p>
             </div>
 
-            {status && (
-              <div className="mb-6 text-sm text-[#c4c7c8] bg-[#1c1b1b] border border-[#444748] rounded px-4 py-3">
-                {status}
-              </div>
+            {configError && (
+              <Alert variant="error" title="Authentication is not configured" className="mb-4">
+                {configError}
+              </Alert>
             )}
 
-            <form className="space-y-6" onSubmit={submit}>
-              <div className="space-y-1">
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-[#e5e2e1] text-[16px] leading-[24px] rounded-full h-12 px-4 transition-colors placeholder:text-[#8e9192] outline-none"
-                />
-              </div>
+            {status && (
+              <Alert variant="error" className="mb-4">
+                {status}
+              </Alert>
+            )}
 
-              <div className="space-y-1">
+            <form className="grid gap-4" onSubmit={submit}>
+              {isSignUp && (
+                <FormField
+                  id="name"
+                  label="Name"
+                  description="Use the display name other members should see."
+                >
+                  <div className="relative">
+                    <UserCircle
+                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <AuthTextInput
+                      id="name"
+                      type="text"
+                      required
+                      minLength={2}
+                      maxLength={80}
+                      autoComplete="name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </FormField>
+              )}
+
+              <FormField
+                id="email"
+                label="Email address"
+                description="Use the email tied to your workspace invitation."
+              >
                 <div className="relative">
-                  <input
+                  <Mail
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <AuthTextInput
+                    id="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </FormField>
+
+              <FormField
+                id="password"
+                label="Password"
+                description={isSignUp ? 'Use at least 6 characters.' : undefined}
+              >
+                <div className="relative">
+                  <Lock
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <AuthTextInput
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder="Password"
+                    minLength={6}
+                    autoComplete={isSignUp ? 'new-password' : 'current-password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#0a0a0a] border border-[#404040] focus:border-white focus:ring-0 text-[#e5e2e1] text-[16px] leading-[24px] rounded-full h-12 px-4 pr-12 transition-colors placeholder:text-[#8e9192] outline-none"
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="pl-9 pr-10"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8e9192] hover:text-[#c4c7c8] transition-colors"
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="size-4" aria-hidden="true" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="size-4" aria-hidden="true" />
                     )}
                   </button>
                 </div>
-                <div className="flex justify-end items-center mt-3 mr-3">
-                  <a
-                    href="#"
-                    className="text-[14px] text-white hover:text-[#c6c6c7] transition-colors"
-                  >
-                    Forgot password?
-                  </a>
-                </div>
-              </div>
+              </FormField>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-white text-[#2f3131] text-[16px] leading-[24px] font-medium h-12 rounded-full hover:bg-[#e2e2e2] transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <span className="animate-pulse">Signing in...</span>
+              <Button type="submit" disabled={isSubmitting || Boolean(configError)} className="mt-2">
+                {isSignUp ? (
+                  <UserPlus className="size-4" aria-hidden="true" />
                 ) : (
-                  <>
-                    Sign in <LogIn className="w-4 h-4" />
-                  </>
+                  <ArrowRight className="size-4" aria-hidden="true" />
                 )}
-              </button>
+                {isSubmitting
+                  ? isSignUp
+                    ? 'Creating account...'
+                    : 'Signing in...'
+                  : isSignUp
+                    ? 'Create account'
+                    : 'Sign in'}
+              </Button>
             </form>
 
-            <div className="mt-10 text-center">
-              <p className="text-[16px] leading-[24px] text-[#c4c7c8]">
-                Don&apos;t have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('sign-up');
-                    setStatus(null);
-                  }}
-                  className="text-white hover:text-[#c6c6c7] transition-colors ml-1"
-                >
-                  Sign up
-                </button>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="hidden md:flex w-1/2 bg-[#1c1b1b] border-l border-[#444748] p-12 items-center justify-center relative overflow-hidden">
-          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,_#3a4a5f,_#131313,_#131313)] pointer-events-none" />
-          <div className="relative w-full max-w-[600px] aspect-[4/3] bg-[#171717] border border-[#262626] rounded-xl flex flex-col overflow-hidden shadow-2xl">
-            <div className="h-12 border-b border-[#262626] flex items-center px-4 gap-2 bg-[#0A0A0A]">
-              <div className="flex gap-1">
-                <div className="w-3 h-3 rounded-full bg-[#404040]" />
-                <div className="w-3 h-3 rounded-full bg-[#404040]" />
-                <div className="w-3 h-3 rounded-full bg-[#404040]" />
-              </div>
-              <div className="flex-grow flex justify-center">
-                <div className="bg-[#171717] border border-[#262626] h-6 px-6 rounded text-[12px] font-mono text-[#c4c7c8] flex items-center">
-                  companydoc.ai/workspace
-                </div>
-              </div>
-            </div>
-            <div className="flex-grow p-4 grid grid-cols-3 gap-3 bg-[#0A0A0A]">
-              <div className="col-span-1 border border-[#262626] rounded bg-[#171717] p-3 space-y-2">
-                <div className="h-4 w-2/3 bg-[#262626] rounded mb-3" />
-                <div className="h-3 w-full bg-[#262626] rounded opacity-50" />
-                <div className="h-3 w-4/5 bg-[#262626] rounded opacity-50" />
-                <div className="h-3 w-full bg-[#262626] rounded opacity-50" />
-              </div>
-              <div className="col-span-2 space-y-3 flex flex-col">
-                <div className="h-24 border border-[#262626] rounded bg-[#171717] p-3 flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <div className="h-4 w-1/3 bg-[#262626] rounded" />
-                    <div className="h-4 w-4 bg-[#262626] rounded-full" />
-                  </div>
-                  <div className="h-8 w-1/2 bg-[#404040] rounded" />
-                </div>
-                <div className="flex-grow grid grid-cols-2 gap-3">
-                  <div className="border border-[#262626] rounded bg-[#171717] p-3 flex flex-col gap-2">
-                    <div className="h-3 w-1/2 bg-[#262626] rounded" />
-                    <div className="flex-grow border border-[#262626] rounded bg-[#0A0A0A]" />
-                  </div>
-                  <div className="border border-[#262626] rounded bg-[#171717] p-3 flex flex-col gap-2">
-                    <div className="h-3 w-1/2 bg-[#262626] rounded" />
-                    <div className="h-3 w-full bg-[#262626] rounded opacity-30" />
-                    <div className="h-3 w-4/5 bg-[#262626] rounded opacity-30" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="absolute bottom-6 right-6 bg-[#262626] border border-[#525252] rounded px-2 py-1 flex items-center gap-2">
-              <span className="w-4 h-4 text-white animate-pulse">✦</span>
-              <div className="h-2 w-16 bg-[#404040] rounded" />
-            </div>
-          </div>
-        </div>
-      </main>
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(isSignUp ? 'sign-in' : 'sign-up');
+                  setStatus(null);
+                }}
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                {isSignUp ? 'Sign in' : 'Sign up'}
+              </button>
+            </p>
+          </Surface>
+        </main>
+      </div>
     </div>
   );
 }

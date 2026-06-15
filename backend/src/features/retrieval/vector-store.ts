@@ -52,10 +52,10 @@ export function getVectorStore() {
   return vectorStore;
 }
 
-export function getSupabaseRetriever(userId: string) {
+export function getSupabaseRetriever(companyId: string) {
   return getVectorStore().asRetriever({
     k: env.retrievalMatchCount,
-    filter: { user_id: userId },
+    filter: { company_id: companyId },
   });
 }
 

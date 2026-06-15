@@ -41,7 +41,7 @@ export async function ingestPDF({
   console.log('Vector embeddings safely stored in Supabase.');
 
   return {
-    retriever: getSupabaseRetriever(userId),
+    retriever: companyId ? getSupabaseRetriever(companyId) : null,
     chunkCount: result.count,
   };
 }

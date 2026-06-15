@@ -5,7 +5,7 @@ import LandingHero from '@/app/landing/components/LandingHero';
 
 export default function LandingPage() {
   return (
-    <div className="bg-background text-foreground antialiased min-h-screen flex flex-col font-['Inter']">
+    <div className="flex min-h-screen flex-col bg-background text-foreground antialiased">
       <LandingHeader />
 
       <main className="flex-grow">
