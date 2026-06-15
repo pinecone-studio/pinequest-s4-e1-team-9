@@ -39,16 +39,33 @@ Frontend public variables:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_API_URL`
 - `NEXT_PUBLIC_CHAT_API_URL`
+- `NEXT_PUBLIC_UPLOAD_API_URL`
 - `NEXT_PUBLIC_DOCUMENTS_API_URL`
 - `NEXT_PUBLIC_COMPANIES_API_URL`
 - `NEXT_PUBLIC_INVITES_API_URL`
 - `NEXT_PUBLIC_PREFERENCES_API_URL`
+- `NEXT_PUBLIC_PROFILE_API_URL`
+- `NEXT_PUBLIC_EVENTS_API_BASE_URL`
 - `NEXT_PUBLIC_ADMIN_COMPANIES_API_URL`
+
+`NEXT_PUBLIC_API_URL` is the preferred production setting and must be the
+public HTTPS origin of the deployed backend, such as
+`https://api.your-domain.com`. The frontend derives `/api/me/profile`, `/chat`,
+`/upload`, `/documents`, `/api/companies`, `/api/invites`,
+`/api/me/preferences`, `/api/ais`, and `/admin/companies` from that origin.
+The per-resource `NEXT_PUBLIC_*_API_URL` values are supported for legacy or
+split-backend deployments; when used in production, each one must also point to
+the deployed HTTPS backend endpoint. A deployed browser app must never use
+`http://localhost:4000`.
 
 ## Supabase Requirements
 
 - Email/password auth enabled; email confirmation may be disabled for demos.
+- Production Site URL set to the deployed Vercel frontend URL.
+- Redirect URLs include the deployed Vercel frontend URL and local development
+  URLs such as `http://localhost:3000/**`.
 - Private storage bucket, default `user-documents`.
 - `pgvector` available for `document_chunks.embedding`.
 - Migrations applied from `backend/prisma/migrations`.
@@ -79,6 +96,58 @@ Default URLs:
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:4000`
+
+## Production Deployment
+
+Deploy the frontend and backend separately. Vercel should host the Next.js
+frontend. The Bun backend should run on a Bun-compatible host such as Railway,
+Render, Fly.io, or a container platform.
+
+Frontend variables in Vercel:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_API_URL=https://<deployed-backend-domain>`
+
+If you keep the legacy per-resource frontend variables, configure all of them
+with HTTPS production endpoints and keep them consistent with the same backend:
+
+- `NEXT_PUBLIC_CHAT_API_URL=https://<deployed-backend-domain>/chat`
+- `NEXT_PUBLIC_UPLOAD_API_URL=https://<deployed-backend-domain>/upload`
+- `NEXT_PUBLIC_DOCUMENTS_API_URL=https://<deployed-backend-domain>/documents`
+- `NEXT_PUBLIC_COMPANIES_API_URL=https://<deployed-backend-domain>/api/companies`
+- `NEXT_PUBLIC_INVITES_API_URL=https://<deployed-backend-domain>/api/invites`
+- `NEXT_PUBLIC_PREFERENCES_API_URL=https://<deployed-backend-domain>/api/me/preferences`
+- `NEXT_PUBLIC_PROFILE_API_URL=https://<deployed-backend-domain>/api/me/profile`
+- `NEXT_PUBLIC_EVENTS_API_BASE_URL=https://<deployed-backend-domain>/api/ais`
+- `NEXT_PUBLIC_ADMIN_COMPANIES_API_URL=https://<deployed-backend-domain>/admin/companies`
+
+Changing any `NEXT_PUBLIC_*` value requires a new Vercel build/deployment.
+
+Backend host variables:
+
+- `PORT` from the hosting provider, or `4000` locally.
+- `HOST=0.0.0.0`
+- `FRONTEND_ORIGIN=https://<vercel-frontend-domain>`
+- `PUBLIC_APP_URL=https://<vercel-frontend-domain>`
+- The server-only Supabase, database, embedding, Groq, storage, and invite
+  variables listed in Local Setup.
+
+Backend build/start commands:
+
+```bash
+bun install
+bun run --cwd backend build
+bun run --cwd backend start
+```
+
+Run migrations during deployment when the database schema changes:
+
+```bash
+bun run --cwd backend db:migrate
+```
+
+The backend exposes `GET /health` and `GET /` as simple health checks.
 
 ## Core Routes
 

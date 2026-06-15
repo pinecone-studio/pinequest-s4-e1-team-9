@@ -56,4 +56,6 @@ export function startHttpServer(port = 4000, host = '0.0.0.0') {
   server.listen(port, host, () => {
     console.log(`🚀 Backend listening on http://${host}:${port}`);
   });
+
+  return server;
 }

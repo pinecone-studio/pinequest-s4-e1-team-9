@@ -15,6 +15,9 @@ type ProfileResponse = {
   error?: string;
 };
 
+const backendUnavailableMessage =
+  'The application server could not be reached. Please retry shortly.';
+
 async function readJsonResponse<T>(response: Response): Promise<T> {
   try {
     return (await response.json()) as T;
@@ -23,20 +26,14 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
   }
 }
 
-function normalizeProfileApiUrl(value: string) {
-  const trimmed = value.trim().replace(/\/+$/, '');
-
-  if (!trimmed) {
-    return '/api/me/profile';
+function getProfileApiUrl() {
+  if (!clientEnv.profileApiUrl) {
+    throw new Error(
+      'The application server is not configured. Set NEXT_PUBLIC_API_URL to the deployed HTTPS backend origin and redeploy the frontend.',
+    );
   }
 
-  return trimmed.endsWith('/api/me/profile')
-    ? trimmed
-    : `${trimmed}/api/me/profile`;
-}
-
-function getProfileApiUrl() {
-  return normalizeProfileApiUrl(clientEnv.profileApiUrl);
+  return clientEnv.profileApiUrl;
 }
 
 async function getProfileAuthHeaders(accessToken?: string) {
@@ -52,12 +49,32 @@ function profileErrorMessage(
   data: ProfileResponse,
   fallback: string,
 ) {
+  if (response.status === 401 || response.status === 403) {
+    return data.error ?? 'Your session could not be authorized. Please sign in again.';
+  }
+
+  if (response.status === 404) {
+    return data.error ?? 'Profile was not found. Please retry to recreate it.';
+  }
+
+  if (response.status >= 500) {
+    return data.error ?? 'The application server returned an error. Please retry shortly.';
+  }
+
   return data.error ?? `${fallback} (${response.status}).`;
+}
+
+async function fetchProfile(input: RequestInfo | URL, init: RequestInit) {
+  try {
+    return await fetch(input, init);
+  } catch {
+    throw new Error(backendUnavailableMessage);
+  }
 }
 
 export async function getCurrentProfile(accessToken?: string) {
   const authHeaders = await getProfileAuthHeaders(accessToken);
-  const response = await fetch(getProfileApiUrl(), {
+  const response = await fetchProfile(getProfileApiUrl(), {
     method: 'GET',
     headers: authHeaders,
   });
@@ -72,7 +89,7 @@ export async function getCurrentProfile(accessToken?: string) {
 
 export async function updateCurrentProfile(name: string, accessToken?: string) {
   const authHeaders = await getProfileAuthHeaders(accessToken);
-  const response = await fetch(getProfileApiUrl(), {
+  const response = await fetchProfile(getProfileApiUrl(), {
     method: 'PATCH',
     headers: {
       ...authHeaders,
