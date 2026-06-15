@@ -10,6 +10,7 @@ export type ChatMessageRole = ChatRole;
 
 type CreateChatMessageInput = {
   userId: string;
+  companyId: string;
   conversationId?: string | null;
   role: ChatMessageRole;
   content: string;
@@ -17,6 +18,7 @@ type CreateChatMessageInput = {
 };
 
 type GetChatMessagesOptions = {
+  companyId: string;
   conversationId?: string | null;
   limit?: number;
 };
@@ -50,6 +52,20 @@ function getCitations(metadata: unknown) {
   const citations = (metadata as { citations?: unknown }).citations;
 
   return Array.isArray(citations) ? citations : undefined;
+}
+
+function getEventSources(metadata: unknown) {
+  if (
+    !metadata ||
+    typeof metadata !== 'object' ||
+    !('eventSources' in metadata)
+  ) {
+    return undefined;
+  }
+
+  const eventSources = (metadata as { eventSources?: unknown }).eventSources;
+
+  return Array.isArray(eventSources) ? eventSources : undefined;
 }
 
 function getDocumentReference(messages: ChatMessage[]) {
@@ -111,6 +127,7 @@ export const createChatMessage = async (input: CreateChatMessageInput) => {
   const message = await prisma.chatMessage.create({
     data: {
       userId: input.userId,
+      companyId: input.companyId,
       conversationId: input.conversationId ?? null,
       role: input.role,
       content: input.content.trim(),
@@ -130,6 +147,7 @@ export const createChatMessages = async (inputs: CreateChatMessageInput[]) => {
   const result = await prisma.chatMessage.createMany({
     data: inputs.map((input) => ({
       userId: input.userId,
+      companyId: input.companyId,
       conversationId: input.conversationId ?? null,
       role: input.role,
       content: input.content.trim(),
@@ -143,11 +161,12 @@ export const createChatMessages = async (inputs: CreateChatMessageInput[]) => {
 
 export const getRecentChatMessages = async (
   userId: string,
-  options: GetChatMessagesOptions = {},
+  options: GetChatMessagesOptions,
 ) => {
   const messages = await prisma.chatMessage.findMany({
     where: {
       userId,
+      companyId: options.companyId,
       conversationId: options.conversationId ?? undefined,
     },
     orderBy: { createdAt: 'desc' },
@@ -159,11 +178,13 @@ export const getRecentChatMessages = async (
 
 export const conversationExistsForUser = async (
   userId: string,
+  companyId: string,
   conversationId: string,
 ) => {
   const count = await prisma.chatMessage.count({
     where: {
       userId,
+      companyId,
       conversationId,
     },
   });
@@ -173,11 +194,13 @@ export const conversationExistsForUser = async (
 
 export const getConversationMessages = async (
   userId: string,
+  companyId: string,
   conversationId: string,
 ): Promise<ChatMessageHistoryItem[]> => {
   const messages = await prisma.chatMessage.findMany({
     where: {
       userId,
+      companyId,
       conversationId,
     },
     orderBy: { createdAt: 'asc' },
@@ -188,11 +211,13 @@ export const getConversationMessages = async (
 
 export const getConversationSummary = async (
   userId: string,
+  companyId: string,
   conversationId: string,
 ) => {
   const messages = await prisma.chatMessage.findMany({
     where: {
       userId,
+      companyId,
       conversationId,
     },
     orderBy: { createdAt: 'asc' },
@@ -203,6 +228,7 @@ export const getConversationSummary = async (
 
 export const listUserConversations = async (
   userId: string,
+  companyId: string,
   limit = 100,
 ): Promise<ChatConversationSummary[]> => {
   // Get the most recent conversations for the user
@@ -210,6 +236,7 @@ export const listUserConversations = async (
     by: ['conversationId'],
     where: {
       userId,
+      companyId,
       conversationId: { not: null },
     },
     _max: {
@@ -234,6 +261,8 @@ export const listUserConversations = async (
   // Fetch messages for these specific conversations only
   const messages = await prisma.chatMessage.findMany({
     where: {
+      userId,
+      companyId,
       conversationId: { in: ids },
     },
     orderBy: { createdAt: 'asc' },
@@ -276,11 +305,13 @@ export const listUserConversations = async (
 
 export const deleteConversationMessages = async (
   userId: string,
+  companyId: string,
   conversationId?: string | null,
 ) => {
   const result = await prisma.chatMessage.deleteMany({
     where: {
       userId,
+      companyId,
       conversationId: conversationId ?? undefined,
     },
   });
@@ -297,5 +328,6 @@ export const serializeChatMessage = (
     content: message.content,
     createdAt: message.createdAt.toISOString(),
     citations: getCitations(message.metadata),
+    eventSources: getEventSources(message.metadata),
   };
 };

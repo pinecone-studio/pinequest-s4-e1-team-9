@@ -1,14 +1,24 @@
-import MessageActions from '@/features/chat/components/MessageActions';
-import { getDocumentPdfSignedUrl } from '@/features/documents/api';
-import FileAttachmentChip from '@/features/documents/components/FileAttachmentChip';
-import type { Citation, Message } from '@/shared/types/chat';
-import { Check, Copy, Pencil, X } from 'lucide-react';
+import type { Citation, EventSource, Message } from '@/shared/types/chat';
+import { Button } from '@/shared/ui/button';
+import { StatusPill } from '@/shared/ui/product';
+import { cn } from '@/shared/lib/utils';
+import {
+  Check,
+  Copy,
+  CalendarDays,
+  FileText,
+  Pencil,
+  X,
+} from 'lucide-react';
+import type React from 'react';
 import { memo, useEffect, useState } from 'react';
 
 interface MessageBubbleProps {
   message: Message;
   onCopy?: (content: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
+  onCitationOpen?: (citation: Citation) => void;
+  onEventOpen?: (eventSource: EventSource) => void;
 }
 
 function citationTitle(citation: Citation) {
@@ -18,93 +28,332 @@ function citationTitle(citation: Citation) {
     citation.pageNumber ? `p. ${citation.pageNumber}` : null,
   ]
     .filter(Boolean)
-    .join(' - ');
+    .join(' · ');
 }
 
-function withPdfPageFragment(signedUrl: string, pageNumber: number | null) {
-  if (!pageNumber) return signedUrl;
-
-  try {
-    const url = new URL(signedUrl);
-    url.hash = `page=${pageNumber}`;
-    return url.toString();
-  } catch {
-    return `${signedUrl}#page=${pageNumber}`;
+function SourceToken({
+  label,
+  citation,
+  eventSource,
+  onCitationOpen,
+  onEventOpen,
+}: {
+  label: string;
+  citation?: Citation;
+  eventSource?: EventSource;
+  onCitationOpen?: (citation: Citation) => void;
+  onEventOpen?: (eventSource: EventSource) => void;
+}) {
+  if (eventSource) {
+    return (
+      <button
+        type="button"
+        onClick={() => onEventOpen?.(eventSource)}
+        className="mx-0.5 inline-flex rounded-md border border-[color-mix(in_srgb,var(--success)_42%,var(--border))] bg-[var(--success-soft)] px-1.5 py-0.5 text-xs font-medium text-[var(--success)] transition-colors hover:bg-[color-mix(in_srgb,var(--success)_18%,transparent)] focus-visible:ring-2 focus-visible:ring-ring"
+        title={eventSource.title}
+      >
+        {label}
+      </button>
+    );
   }
-}
 
-async function openCitationPdf(citation: Citation) {
-  if (!citation.documentId) {
-    window.alert('This source is missing its document id.');
-    return;
+  if (!citation) {
+    return (
+      <span className="inline-flex rounded-md bg-[var(--surface-2)] px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+        {label}
+      </span>
+    );
   }
-
-  const pdfWindow = window.open('about:blank', '_blank');
-
-  try {
-    if (pdfWindow) {
-      pdfWindow.opener = null;
-      pdfWindow.document.title = citation.filename || 'PDF source';
-      pdfWindow.document.body.textContent = 'Opening PDF...';
-    }
-
-    const { signedUrl } = await getDocumentPdfSignedUrl(citation.documentId);
-
-    if (!signedUrl) {
-      throw new Error('Failed to create PDF link.');
-    }
-
-    const pdfUrl = withPdfPageFragment(signedUrl, citation.pageNumber);
-
-    if (pdfWindow) {
-      pdfWindow.location.href = pdfUrl;
-    } else {
-      window.open(pdfUrl, '_blank', 'noopener,noreferrer');
-    }
-  } catch (error) {
-    pdfWindow?.close();
-    const message =
-      error instanceof Error ? error.message : 'Failed to open PDF source.';
-    window.alert(message);
-  }
-}
-
-function renderCitations(citations: Citation[] | undefined) {
-  if (!citations?.length) return null;
 
   return (
-    <div className="mt-3 flex flex-col gap-2">
-      {citations.map((citation, index) => {
-        return (
-          <button
-            key={`${citation.sourceId}-${citation.chunkId ?? citation.chunkIndex ?? index}`}
-            type="button"
-            onClick={() => {
-              void openCitationPdf(citation);
-            }}
-            className="
-              border-l border-[#00e5cc]/60 pl-3 block w-full text-left no-underline
-              text-[12px] leading-5 text-muted-foreground
-              font-['Inter'] hover:bg-secondary/20 py-1 pr-2 transition-colors
-            "
-            title="Supabase Storage-оос бодит PDF хуудсыг шинэ таб дээр нээх"
-          >
-            <div className="text-[#00e5cc] break-words font-bold">
-              {citationTitle(citation)} 📄
-            </div>
-            {citation.preview && (
-              <p className="m-0 mt-1 break-words line-clamp-2 text-muted-foreground/80">
-                {citation.preview}
-              </p>
+    <button
+      type="button"
+      onClick={() => onCitationOpen?.(citation)}
+      className="mx-0.5 inline-flex rounded-md border border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] px-1.5 py-0.5 text-xs font-medium text-accent transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] focus-visible:ring-2 focus-visible:ring-ring"
+      title={citationTitle(citation)}
+    >
+      {label}
+    </button>
+  );
+}
+
+function renderInlineSources(
+  text: string,
+  citations: Citation[] | undefined,
+  eventSources: EventSource[] | undefined,
+  onCitationOpen?: (citation: Citation) => void,
+  onEventOpen?: (eventSource: EventSource) => void,
+) {
+  const parts = text.split(/(\[(?:Source|Event) \d+\])/g);
+
+  return parts.map((part, index) => {
+    const sourceMatch = part.match(/^\[Source (\d+)\]$/);
+    const eventMatch = part.match(/^\[Event (\d+)\]$/);
+
+    if (!sourceMatch && !eventMatch) return <span key={index}>{part}</span>;
+
+    if (eventMatch) {
+      const eventSource = eventSources?.[Number(eventMatch[1]) - 1];
+      return (
+        <SourceToken
+          key={index}
+          label={part}
+          eventSource={eventSource}
+          onEventOpen={onEventOpen}
+        />
+      );
+    }
+
+    const citation = citations?.[Number(sourceMatch![1]) - 1];
+    return (
+      <SourceToken
+        key={index}
+        label={part}
+        citation={citation}
+        onCitationOpen={onCitationOpen}
+      />
+    );
+  });
+}
+
+function MarkdownLite({
+  content,
+  citations,
+  eventSources,
+  onCitationOpen,
+  onEventOpen,
+}: {
+  content: string;
+  citations?: Citation[];
+  eventSources?: EventSource[];
+  onCitationOpen?: (citation: Citation) => void;
+  onEventOpen?: (eventSource: EventSource) => void;
+}) {
+  const lines = content.split('\n');
+  const blocks: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  let codeLines: string[] = [];
+  let inCode = false;
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    blocks.push(
+      <ul key={`ul-${blocks.length}`} className="ml-5 list-disc space-y-1">
+        {listItems.map((item, index) => (
+          <li key={`${item}-${index}`}>
+            {renderInlineSources(
+              item,
+              citations,
+              eventSources,
+              onCitationOpen,
+              onEventOpen,
             )}
+          </li>
+        ))}
+      </ul>,
+    );
+    listItems = [];
+  };
+
+  const flushCode = () => {
+    if (!codeLines.length) return;
+    blocks.push(
+      <pre
+        key={`code-${blocks.length}`}
+        className="overflow-x-auto rounded-lg border border-border bg-background p-3 text-xs"
+      >
+        <code>{codeLines.join('\n')}</code>
+      </pre>,
+    );
+    codeLines = [];
+  };
+
+  lines.forEach((line) => {
+    if (line.trim().startsWith('```')) {
+      if (inCode) {
+        flushCode();
+        inCode = false;
+      } else {
+        flushList();
+        inCode = true;
+      }
+      return;
+    }
+
+    if (inCode) {
+      codeLines.push(line);
+      return;
+    }
+
+    const bullet = line.match(/^\s*[-*]\s+(.+)/);
+    if (bullet) {
+      listItems.push(bullet[1]);
+      return;
+    }
+
+    flushList();
+
+    if (!line.trim()) {
+      return;
+    }
+
+    if (line.startsWith('### ')) {
+      blocks.push(
+        <h4 key={`h4-${blocks.length}`} className="text-sm font-semibold">
+          {renderInlineSources(
+            line.slice(4),
+            citations,
+            eventSources,
+            onCitationOpen,
+            onEventOpen,
+          )}
+        </h4>,
+      );
+      return;
+    }
+
+    if (line.startsWith('## ')) {
+      blocks.push(
+        <h3 key={`h3-${blocks.length}`} className="text-base font-semibold">
+          {renderInlineSources(
+            line.slice(3),
+            citations,
+            eventSources,
+            onCitationOpen,
+            onEventOpen,
+          )}
+        </h3>,
+      );
+      return;
+    }
+
+    blocks.push(
+      <p key={`p-${blocks.length}`}>
+        {renderInlineSources(
+          line,
+          citations,
+          eventSources,
+          onCitationOpen,
+          onEventOpen,
+        )}
+      </p>,
+    );
+  });
+
+  flushList();
+  flushCode();
+
+  return <div className="space-y-3">{blocks}</div>;
+}
+
+function formatEventSourceTime(eventSource: EventSource) {
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    timeZone: eventSource.timezone,
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  const start = formatter.format(new Date(eventSource.startsAt));
+  const end = eventSource.endsAt
+    ? formatter.format(new Date(eventSource.endsAt))
+    : null;
+
+  return end ? `${start} to ${end}` : start;
+}
+
+function EventSourceCards({
+  eventSources,
+  onEventOpen,
+}: {
+  eventSources: EventSource[] | undefined;
+  onEventOpen?: (eventSource: EventSource) => void;
+}) {
+  if (!eventSources?.length) return null;
+
+  return (
+    <div className="mt-4 grid gap-2">
+      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <CalendarDays className="mr-1 inline size-3.5" aria-hidden="true" />
+        Events
+      </p>
+      <div className="grid gap-2">
+        {eventSources.map((eventSource, index) => (
+          <button
+            key={`${eventSource.eventId}-${index}`}
+            type="button"
+            onClick={() => onEventOpen?.(eventSource)}
+            className="rounded-lg border border-[color-mix(in_srgb,var(--success)_30%,var(--border))] bg-[var(--success-soft)] p-3 text-left transition-colors hover:bg-[color-mix(in_srgb,var(--success)_16%,transparent)] focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill tone={eventSource.status === 'cancelled' ? 'warning' : 'success'}>
+                Event {index + 1}
+              </StatusPill>
+              <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                {eventSource.title}
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              {formatEventSourceTime(eventSource)} · {eventSource.timezone}
+              {eventSource.location ? ` · ${eventSource.location}` : ''}
+            </p>
           </button>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
 
-function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
+function CitationCards({
+  citations,
+  onCitationOpen,
+}: {
+  citations: Citation[] | undefined;
+  onCitationOpen?: (citation: Citation) => void;
+}) {
+  if (!citations?.length) return null;
+
+  return (
+    <div className="mt-4 grid gap-2">
+      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        Sources
+      </p>
+      <div className="grid gap-2">
+        {citations.map((citation, index) => (
+          <button
+            key={`${citation.sourceId}-${citation.chunkId ?? citation.chunkIndex ?? index}`}
+            type="button"
+            onClick={() => onCitationOpen?.(citation)}
+            className="rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill tone="info">Source {index + 1}</StatusPill>
+              <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                {citation.filename || citation.label || 'Document source'}
+              </span>
+              {citation.pageNumber && (
+                <span className="text-xs text-muted-foreground">
+                  Page {citation.pageNumber}
+                </span>
+              )}
+            </div>
+            {citation.preview && (
+              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                {citation.preview}
+              </p>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  message,
+  onCopy,
+  onEdit,
+  onCitationOpen,
+  onEventOpen,
+}: MessageBubbleProps) {
   const [hovered, setHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
@@ -114,48 +363,6 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
       setEditValue(message.content);
     }
   }, [isEditing, message.content]);
-
-  function renderWithInteractiveSources(
-    text: string,
-    citations: Citation[] | undefined,
-  ) {
-    if (!text) return null;
-
-    const parts = text.split(/(\[Source \d+\])/g);
-
-    return parts.map((part, index) => {
-      const match = part.match(/^\[Source (\d+)\]$/);
-
-      if (match) {
-        const sourceIndex = parseInt(match[1], 10) - 1;
-        const citation = citations?.[sourceIndex];
-
-        if (citation) {
-          return (
-            <button
-              key={index}
-              type="button"
-              onClick={() => {
-                void openCitationPdf(citation);
-              }}
-              className="text-[#00e5cc] hover:underline font-bold mx-0.5 underline-offset-4 bg-[#00e5cc]/10 px-1 rounded inline-block"
-              title={`${citation.filename}`}
-            >
-              {part}
-            </button>
-          );
-        }
-
-        return (
-          <span key={index} className="text-[#00e5cc]">
-            {part}
-          </span>
-        );
-      }
-
-      return <span key={index}>{part}</span>;
-    });
-  }
 
   function handleSaveEdit() {
     const trimmed = editValue.trim();
@@ -177,122 +384,75 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        <div className="max-w-[72%] flex flex-col items-end gap-1.5">
-          {message.attachment && (
-            <FileAttachmentChip name={message.attachment.name} />
-          )}
-
-          {message.content && (
+        <div className="flex w-full max-w-[min(640px,86%)] flex-col items-end gap-2">
+          {isEditing ? (
+            <div className="w-full rounded-lg border border-border bg-card p-2">
+              <textarea
+                autoFocus
+                value={editValue}
+                onChange={(event) => setEditValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    handleSaveEdit();
+                  }
+                  if (event.key === 'Escape') {
+                    handleCancelEdit();
+                  }
+                }}
+                rows={Math.min(8, Math.max(2, editValue.split('\n').length))}
+                className="min-h-24 w-full resize-none bg-transparent px-2 py-2 text-sm leading-6 text-foreground"
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleCancelEdit}>
+                  <X className="size-4" aria-hidden="true" />
+                  Cancel
+                </Button>
+                <Button type="button" size="sm" onClick={handleSaveEdit}>
+                  <Check className="size-4" aria-hidden="true" />
+                  Save
+                </Button>
+              </div>
+            </div>
+          ) : (
             <>
-              {isEditing ? (
-                <div className="w-full flex flex-col gap-2 items-end">
-                  <textarea
-                    autoFocus
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSaveEdit();
-                      }
-                      if (e.key === 'Escape') {
-                        handleCancelEdit();
-                      }
-                    }}
-                    rows={Math.min(
-                      8,
-                      Math.max(2, editValue.split('\n').length),
-                    )}
-                    className="
-                      w-full bg-secondary rounded-2xl border border-[#00e5cc]/40
-                      px-4 py-3 text-[15px] leading-6 text-secondary-foreground
-                      whitespace-pre-wrap break-words font-['Inter']
-                      outline-none focus:border-[#717976] resize-none
-                      transition-colors duration-150
-                    "
-                  />
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCancelEdit}
-                      className="
-                        flex items-center gap-1 px-3 py-1.5 rounded-full
-                        bg-transparent border border-border text-muted-foreground
-                        hover:bg-muted hover:text-foreground
-                        text-[13px] font-medium cursor-pointer transition-colors duration-150
-                      "
-                    >
-                      <X size={14} />
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveEdit}
-                      className="
-                        flex items-center gap-1 px-3 py-1.5 rounded-full
-                        bg-[#d3d6d5] text-black border-none
-                        hover:bg-[#929795]
-                        text-[13px] font-medium cursor-pointer transition-colors duration-150
-                      "
-                    >
-                      <Check size={14} />
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="
-                      bg-secondary rounded-full px-5 py-4 text-[16px] leading-6 text-secondary-foreground whitespace-pre-wrap break-words font-['Inter'] shadow-sm
-                    "
-                  >
-                    {renderWithInteractiveSources(
-                      message.content,
-                      message.citations,
-                    )}
-                  </div>
-
-                  <div
-                    className={`
-                      flex items-center gap-0.5 transition-opacity duration-150
-                      ${hovered ? 'opacity-100' : 'opacity-0'}
-                    `}
-                  >
-                    <button
-                      type="button"
-                      aria-label="Edit message"
-                      title="Edit"
-                      onClick={() => {
-                        setEditValue(message.content);
-                        setIsEditing(true);
-                      }}
-                      className="
-                        w-7 h-7 rounded-full flex items-center justify-center
-                        bg-transparent border-none text-muted-foreground
-                        hover:bg-muted hover:text-foreground
-                        cursor-pointer transition-colors duration-150
-                      "
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Copy"
-                      title="Copy"
-                      onClick={() => onCopy?.(message.content)}
-                      className="
-                        w-7 h-7 rounded-full flex items-center justify-center
-                        bg-transparent border-none text-muted-foreground
-                        hover:bg-muted hover:text-foreground
-                        cursor-pointer transition-colors duration-150
-                      "
-                    >
-                      <Copy size={13} />
-                    </button>
-                  </div>
-                </>
-              )}
+              <div className="rounded-lg bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground shadow-[var(--shadow-sm)]">
+                <MarkdownLite
+                  content={message.content}
+                  citations={message.citations}
+                  eventSources={message.eventSources}
+                  onCitationOpen={onCitationOpen}
+                  onEventOpen={onEventOpen}
+                />
+              </div>
+              <div
+                className={cn(
+                  'flex items-center gap-1 transition-opacity',
+                  hovered ? 'opacity-100' : 'opacity-0 focus-within:opacity-100',
+                )}
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Edit message"
+                  onClick={() => {
+                    setEditValue(message.content);
+                    setIsEditing(true);
+                  }}
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Copy message"
+                  onClick={() => onCopy?.(message.content)}
+                >
+                  <Copy className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
             </>
           )}
         </div>
@@ -301,20 +461,45 @@ function MessageBubble({ message, onCopy, onEdit }: MessageBubbleProps) {
   }
 
   return (
-    <div className="flex flex-col relative">
-      <div
-        className={`
-          m-0 text-[15px] leading-[26px] whitespace-pre-wrap break-words font-['Inter']
-          ${message.tone === 'error' ? 'text-destructive' : 'text-foreground'}
-          ${message.tone === 'success' ? 'text-[#00e5cc]' : ''}
-        `}
-      >
-        {renderWithInteractiveSources(message.content, message.citations)}
+    <div className="grid gap-2">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <FileText className="size-3.5" aria-hidden="true" />
+        Assistant
       </div>
-
-      {renderCitations(message.citations)}
-
-      <MessageActions onCopy={() => onCopy?.(message.content)} />
+      <div
+        className={cn(
+          'max-w-3xl text-sm leading-7',
+          message.tone === 'error' ? 'text-destructive' : 'text-foreground',
+          message.tone === 'success' && 'text-[var(--success)]',
+        )}
+      >
+        <MarkdownLite
+          content={message.content}
+          citations={message.citations}
+          eventSources={message.eventSources}
+          onCitationOpen={onCitationOpen}
+          onEventOpen={onEventOpen}
+        />
+      </div>
+      <CitationCards
+        citations={message.citations}
+        onCitationOpen={onCitationOpen}
+      />
+      <EventSourceCards
+        eventSources={message.eventSources}
+        onEventOpen={onEventOpen}
+      />
+      <div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Copy message"
+          onClick={() => onCopy?.(message.content)}
+        >
+          <Copy className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -324,5 +509,7 @@ export default memo(
   (prev, next) =>
     prev.message === next.message &&
     prev.onCopy === next.onCopy &&
-    prev.onEdit === next.onEdit,
+    prev.onEdit === next.onEdit &&
+    prev.onCitationOpen === next.onCitationOpen &&
+    prev.onEventOpen === next.onEventOpen,
 );

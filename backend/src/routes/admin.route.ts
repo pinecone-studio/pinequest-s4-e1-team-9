@@ -6,24 +6,36 @@ import {
   getCompanyAccess,
   requireCompanyAdmin,
   requireCompanyDocumentManager,
-  requireCompanyOwner,
-  requireCompanyUserInviter,
 } from '../features/companies/authorization.service.js';
 import {
-  addCompanyMember,
   createCompany,
+  createAiSetupDraft,
+  archiveCompany,
+  finalizeAiSetup,
+  getAiSetup,
+  removeCompanyMember,
   listCompanyMembers,
+  listAiDocuments,
   listUserCompanies,
-  updateCompanyMemberRole,
+  refreshAiSetupStatusAfterDocumentChange,
+  removeAiDocument,
+  updateAiSetup,
 } from '../features/companies/company.service.js';
 import { DocumentProcessingError } from '../features/documents/types.js';
 import { ingestUploadedPdf } from '../features/documents/upload.service.js';
 import { readJsonBody, sendJson } from '../server/errors.js';
 import { enforceRateLimit } from '../server/rate-limit.js';
+import type { UpdateAiSetupInput } from '../features/companies/types.js';
 
 const adminCompaniesPath = '/admin/companies';
+const adminDraftsPath = '/admin/companies/drafts';
+const companyRootPathPattern = /^\/admin\/companies\/([^/]+)$/i;
 const companyScopedPathPattern =
-  /^\/admin\/companies\/([^/]+)\/(access|documents|members)$/i;
+  /^\/admin\/companies\/([^/]+)\/(access|documents|members|setup|finalize)$/i;
+const companyDocumentPathPattern =
+  /^\/admin\/companies\/([^/]+)\/documents\/([^/]+)$/i;
+const companyMemberPathPattern =
+  /^\/admin\/companies\/([^/]+)\/members\/([^/]+)$/i;
 const companyMemberRolePathPattern =
   /^\/admin\/companies\/([^/]+)\/members\/([^/]+)\/role$/i;
 const uuidPattern =
@@ -49,13 +61,20 @@ export async function handleAdminRoute(
   const host = req.headers.host || 'localhost';
   const requestUrl = new URL(req.url || '/', `http://${host}`);
   const scopedMatch = companyScopedPathPattern.exec(requestUrl.pathname);
+  const companyRootMatch = companyRootPathPattern.exec(requestUrl.pathname);
+  const documentMatch = companyDocumentPathPattern.exec(requestUrl.pathname);
+  const memberMatch = companyMemberPathPattern.exec(requestUrl.pathname);
   const memberRoleMatch = companyMemberRolePathPattern.exec(
     requestUrl.pathname,
   );
 
   if (
     requestUrl.pathname !== adminCompaniesPath &&
+    requestUrl.pathname !== adminDraftsPath &&
+    !companyRootMatch &&
     !scopedMatch &&
+    !documentMatch &&
+    !memberMatch &&
     !memberRoleMatch
   ) {
     return false;
@@ -83,6 +102,12 @@ export async function handleAdminRoute(
       return true;
     }
 
+    if (requestUrl.pathname === adminDraftsPath && req.method === 'POST') {
+      const draft = await createAiSetupDraft(userId);
+      sendJson(res, 201, draft, headers);
+      return true;
+    }
+
     if (scopedMatch) {
       const companyId = assertUuid(
         decodePathPart(scopedMatch[1]),
@@ -104,6 +129,27 @@ export async function handleAdminRoute(
         return true;
       }
 
+      if (action === 'setup' && req.method === 'GET') {
+        const setup = await getAiSetup(userId, companyId);
+        sendJson(res, 200, setup, headers);
+        return true;
+      }
+
+      if (action === 'setup' && req.method === 'PATCH') {
+        const body = await readJsonBody<UpdateAiSetupInput>(req, {
+          maxBytes: 96 * 1024,
+        });
+        const setup = await updateAiSetup(userId, companyId, body);
+        sendJson(res, 200, setup, headers);
+        return true;
+      }
+
+      if (action === 'finalize' && req.method === 'POST') {
+        const setup = await finalizeAiSetup(userId, companyId);
+        sendJson(res, 200, setup, headers);
+        return true;
+      }
+
       if (action === 'documents' && req.method === 'POST') {
         await requireCompanyDocumentManager(userId, companyId);
         enforceRateLimit({
@@ -112,12 +158,21 @@ export async function handleAdminRoute(
           label: 'company upload',
         });
 
-        const result = await ingestUploadedPdf({
-          req,
-          uploadDir: path.join(process.cwd(), 'uploads'),
-          userId,
-          companyId,
-        });
+        let result: Awaited<ReturnType<typeof ingestUploadedPdf>>;
+
+        try {
+          result = await ingestUploadedPdf({
+            req,
+            uploadDir: path.join(process.cwd(), 'uploads'),
+            userId,
+            companyId,
+          });
+        } catch (uploadError) {
+          await refreshAiSetupStatusAfterDocumentChange(companyId);
+          throw uploadError;
+        }
+
+        await refreshAiSetupStatusAfterDocumentChange(companyId);
 
         sendJson(
           res,
@@ -132,6 +187,12 @@ export async function handleAdminRoute(
         return true;
       }
 
+      if (action === 'documents' && req.method === 'GET') {
+        const documents = await listAiDocuments(userId, companyId);
+        sendJson(res, 200, { documents }, headers);
+        return true;
+      }
+
       if (action === 'members' && req.method === 'GET') {
         await requireCompanyAdmin(userId, companyId);
         const members = await listCompanyMembers(companyId);
@@ -140,16 +201,60 @@ export async function handleAdminRoute(
       }
 
       if (action === 'members' && req.method === 'POST') {
-        await requireCompanyUserInviter(userId, companyId);
-        const body = await readJsonBody<{ userId?: string }>(req, {
-          maxBytes: 16 * 1024,
-        });
-        const memberUserId = assertUuid(body.userId ?? null, 'user id');
-        const member = await addCompanyMember(companyId, memberUserId);
-
-        sendJson(res, 201, member, headers);
+        await requireCompanyAdmin(userId, companyId);
+        sendJson(
+          res,
+          403,
+          {
+            error:
+              'Direct member management is not supported. Share the invitation code instead.',
+          },
+          headers,
+        );
         return true;
       }
+    }
+
+    if (documentMatch) {
+      const companyId = assertUuid(
+        decodePathPart(documentMatch[1]),
+        'company id',
+      );
+      const documentId = assertUuid(
+        decodePathPart(documentMatch[2]),
+        'document id',
+      );
+
+      if (req.method === 'DELETE') {
+        await requireCompanyDocumentManager(userId, companyId);
+        const document = await removeAiDocument(userId, companyId, documentId);
+        sendJson(res, 200, { ok: true, document }, headers);
+        return true;
+      }
+    }
+
+    if (memberMatch && req.method === 'DELETE') {
+      const companyId = assertUuid(
+        decodePathPart(memberMatch[1]),
+        'company id',
+      );
+      const memberUserId = assertUuid(
+        decodePathPart(memberMatch[2]),
+        'user id',
+      );
+      const member = await removeCompanyMember(userId, companyId, memberUserId);
+      sendJson(res, 200, { ok: true, member }, headers);
+      return true;
+    }
+
+    if (companyRootMatch && req.method === 'DELETE') {
+      const companyId = assertUuid(
+        decodePathPart(companyRootMatch[1]),
+        'company id',
+      );
+      const company = await archiveCompany(userId, companyId);
+      sendJson(res, 200, { ok: true, company }, headers);
+      return true;
     }
 
     if (memberRoleMatch && req.method === 'PATCH') {
@@ -157,35 +262,14 @@ export async function handleAdminRoute(
         decodePathPart(memberRoleMatch[1]),
         'company id',
       );
-      const memberUserId = assertUuid(
-        decodePathPart(memberRoleMatch[2]),
-        'user id',
+      assertUuid(decodePathPart(memberRoleMatch[2]), 'user id');
+      await requireCompanyAdmin(userId, companyId);
+      sendJson(
+        res,
+        403,
+        { error: 'Company role changes are not supported.' },
+        headers,
       );
-      await requireCompanyOwner(userId, companyId);
-
-      if (memberUserId === userId) {
-        throw new DocumentProcessingError(
-          'Users cannot change their own company role.',
-          400,
-        );
-      }
-
-      const body = await readJsonBody<{ role?: string }>(req, {
-        maxBytes: 16 * 1024,
-      });
-      const role = body.role;
-
-      if (role !== 'ADMIN' && role !== 'MEMBER') {
-        throw new DocumentProcessingError('Invalid company role.', 400);
-      }
-
-      const member = await updateCompanyMemberRole(
-        companyId,
-        memberUserId,
-        role,
-      );
-
-      sendJson(res, 200, member, headers);
       return true;
     }
 

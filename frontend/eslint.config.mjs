@@ -1,21 +1,14 @@
-import { FlatCompat } from '@eslint/eslintrc';
-import js from '@eslint/js';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all,
-});
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTypescript from 'eslint-config-next/typescript';
 
 const eslintConfig = [
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...nextVitals,
+  ...nextTypescript,
   {
     ignores: ['.next/**', 'out/**', 'build/**', 'next-env.d.ts'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ];
 

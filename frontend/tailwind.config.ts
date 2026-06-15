@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import tailwindcssAnimate from 'tailwindcss-animate';
 
 const config: Config = {
   content: [
@@ -46,7 +47,15 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["'Google Sans'", "'Segoe UI'", 'system-ui', 'sans-serif'],
+        sans: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          "'Segoe UI'",
+          'sans-serif',
+        ],
         mono: [
           'ui-monospace',
           'SFMono-Regular',
@@ -69,6 +78,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [tailwindcssAnimate],
 };
 export default config;

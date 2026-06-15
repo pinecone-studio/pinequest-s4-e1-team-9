@@ -11,12 +11,28 @@ export type Citation = {
   preview: string;
 };
 
+export type EventSource = {
+  type: 'event';
+  sourceId: string;
+  label: string;
+  eventId: string;
+  title: string;
+  startsAt: string;
+  endsAt: string | null;
+  timezone: string;
+  location: string | null;
+  meetingUrl: string | null;
+  status: 'scheduled' | 'cancelled';
+  preview: string;
+};
+
 export type Message = {
   id: string;
   role: ChatRole;
   content: string;
   attachment?: { name: string };
   citations?: Citation[];
+  eventSources?: EventSource[];
   tone?: 'normal' | 'success' | 'error';
 };
 
@@ -43,6 +59,7 @@ export type ChatHistoryMessageApi = {
   content: string;
   createdAt: string;
   citations?: Citation[];
+  eventSources?: EventSource[];
 };
 
 export type ChatResponse = {
@@ -50,8 +67,10 @@ export type ChatResponse = {
   conversation?: Conversation | null;
   reply?: string;
   citations?: Citation[];
+  eventSources?: EventSource[];
   retrieval?: {
     sourceCount: number;
+    eventSourceCount?: number;
     retrievalFailed: boolean;
     contextTruncated: boolean;
   };

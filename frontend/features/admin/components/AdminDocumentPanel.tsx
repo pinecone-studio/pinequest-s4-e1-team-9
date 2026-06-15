@@ -3,6 +3,7 @@
 import { AlertCircle, CheckCircle2, Loader2, Upload } from 'lucide-react';
 import { useAdminDocumentUpload } from '@/features/admin/hooks/useAdminDocumentUpload';
 import type { Company } from '@/features/admin/types';
+import { formatCompanyRole } from '@/features/companies/types';
 import { cn } from '@/shared/lib/utils';
 
 export default function AdminDocumentPanel({ company }: { company: Company }) {
@@ -25,7 +26,7 @@ export default function AdminDocumentPanel({ company }: { company: Company }) {
         <div className="mb-6">
           <h2 className="text-xl font-bold text-gray-900">{company.name}</h2>
           <p className="text-sm text-gray-500">
-            Uploading as {company.role} for this company.
+            Uploading as {formatCompanyRole(company.role)} for this workspace.
           </p>
         </div>
 
@@ -77,10 +78,10 @@ export default function AdminDocumentPanel({ company }: { company: Company }) {
             {loading ? (
               <>
                 <Loader2 className="-ml-1 mr-3 h-5 w-5 animate-spin" />
-                Extracting...
+                Uploading...
               </>
             ) : (
-              'Extract Text'
+              'Upload PDF'
             )}
           </button>
         </div>

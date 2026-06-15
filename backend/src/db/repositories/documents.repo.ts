@@ -64,6 +64,16 @@ export const getUserDocument = async (userId: string, documentId: string) => {
   return userDocument;
 };
 
+export const getDocumentById = async (documentId: string) => {
+  const userDocument = await prisma.userDocument.findUnique({
+    where: {
+      id: documentId,
+    },
+  });
+
+  return userDocument;
+};
+
 export const updateUserDocument = async (
   userId: string,
   documentId: string,

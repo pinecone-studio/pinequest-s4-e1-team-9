@@ -37,6 +37,8 @@ async function testRAG() {
 
     const response = await generateChatResponse(messages, {
       userId: env.defaultUserId,
+      companyId: env.defaultUserId,
+      userName: 'Test User',
     });
     console.log('Chatbot Response:');
     console.log(response);

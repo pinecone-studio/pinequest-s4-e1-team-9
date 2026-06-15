@@ -49,6 +49,11 @@ export const env = {
   frontendOrigins: resolveStringList(process.env.FRONTEND_ORIGIN, [
     'http://localhost:3000',
   ]),
+  publicAppUrl:
+    process.env.PUBLIC_APP_URL ||
+    process.env.FRONTEND_ORIGIN?.split(',')[0]?.trim() ||
+    'http://localhost:3000',
+  inviteCodePepper: process.env.INVITE_CODE_PEPPER || '',
   supabaseStorageBucket:
     process.env.SUPABASE_STORAGE_BUCKET || 'user-documents',
   defaultUserId:
@@ -92,6 +97,12 @@ export const env = {
     process.env.UPLOAD_RATE_LIMIT_PER_MINUTE,
     5,
   ),
+  inviteRedeemRateLimitPerMinute: resolvePositiveInteger(
+    process.env.INVITE_REDEEM_RATE_LIMIT_PER_MINUTE,
+    10,
+  ),
+  defaultEventTimezone:
+    process.env.DEFAULT_EVENT_TIMEZONE || 'Asia/Ulaanbaatar',
 };
 
 function getSupabaseUrl() {

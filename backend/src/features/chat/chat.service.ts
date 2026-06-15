@@ -8,11 +8,18 @@ import {
   buildRagContext,
   type RetrievedCitation,
 } from '../retrieval/retriever.service.js';
+import { getCompanyBehavior } from '../companies/company.service.js';
+import {
+  buildChatEventContext,
+  type EventSource,
+} from '../events/event.service.js';
 import { createRagSystemMessage } from './prompt.js';
 import type { ChatConversationSummary, ChatMessage } from './types.js';
 
 type GenerateChatResponseOptions = {
   userId: string;
+  companyId: string;
+  userName: string;
   conversationId?: string | null;
 };
 
@@ -21,8 +28,10 @@ export type ChatResponseResult = {
   conversation: ChatConversationSummary | null;
   reply: string;
   citations: RetrievedCitation[];
+  eventSources: EventSource[];
   retrieval: {
     sourceCount: number;
+    eventSourceCount: number;
     retrievalFailed: boolean;
     contextTruncated: boolean;
   };
@@ -82,7 +91,9 @@ function createResult(input: {
   conversationId: string;
   reply: string;
   citations?: RetrievedCitation[];
+  eventSources?: EventSource[];
   sourceCount?: number;
+  eventSourceCount?: number;
   retrievalFailed?: boolean;
   contextTruncated?: boolean;
   warnings?: string[];
@@ -92,8 +103,11 @@ function createResult(input: {
     conversation: null,
     reply: input.reply,
     citations: input.citations ?? [],
+    eventSources: input.eventSources ?? [],
     retrieval: {
       sourceCount: input.sourceCount ?? input.citations?.length ?? 0,
+      eventSourceCount:
+        input.eventSourceCount ?? input.eventSources?.length ?? 0,
       retrievalFailed: input.retrievalFailed ?? false,
       contextTruncated: input.contextTruncated ?? false,
     },
@@ -103,12 +117,17 @@ function createResult(input: {
 
 async function assertConversationBelongsToUser(
   userId: string,
+  companyId: string,
   conversationId: string,
 ) {
   const { conversationExistsForUser } =
     await import('../../db/repositories/chat-messages.repo.js');
 
-  const exists = await conversationExistsForUser(userId, conversationId);
+  const exists = await conversationExistsForUser(
+    userId,
+    companyId,
+    conversationId,
+  );
 
   if (!exists) {
     throw new DocumentProcessingError('Conversation not found.', 404);
@@ -117,6 +136,7 @@ async function assertConversationBelongsToUser(
 
 async function persistChatExchange(input: {
   userId: string;
+  companyId: string;
   conversationId: string;
   userMessage: ChatMessage | undefined;
   result: ChatResponseResult;
@@ -131,28 +151,36 @@ async function persistChatExchange(input: {
   await createChatMessages([
     {
       userId: input.userId,
+      companyId: input.companyId,
       conversationId: input.conversationId,
       role: 'user',
       content: input.userMessage.content,
     },
     {
       userId: input.userId,
+      companyId: input.companyId,
       conversationId: input.conversationId,
       role: 'assistant',
       content: input.result.reply,
       metadata: {
         citations: input.result.citations,
+        eventSources: input.result.eventSources,
         retrieval: input.result.retrieval,
         warnings: input.result.warnings,
       },
     },
   ]);
 
-  return getConversationSummary(input.userId, input.conversationId);
+  return getConversationSummary(
+    input.userId,
+    input.companyId,
+    input.conversationId,
+  );
 }
 
 async function persistChatExchangeSafely(input: {
   userId: string;
+  companyId: string;
   conversationId: string;
   userMessage: ChatMessage | undefined;
   result: ChatResponseResult;
@@ -177,10 +205,23 @@ export async function generateChatResponse(
     throw new Error('Chat responses require a user id.');
   }
 
+  if (!options.companyId.trim()) {
+    throw new Error('Chat responses require a company id.');
+  }
+
+  if (!options.userName.trim()) {
+    throw new Error('Chat responses require a verified user name.');
+  }
+
   const conversationId = options.conversationId ?? randomUUID();
+  const behavior = await getCompanyBehavior(options.companyId);
 
   if (options.conversationId) {
-    await assertConversationBelongsToUser(options.userId, conversationId);
+    await assertConversationBelongsToUser(
+      options.userId,
+      options.companyId,
+      conversationId,
+    );
   }
 
   const budgetedMessages = getBudgetedMessages(messages);
@@ -194,10 +235,28 @@ export async function generateChatResponse(
   };
   let retrievalFailed = false;
   const warnings: string[] = [];
+  const now = new Date();
+  let eventContext = {
+    context: 'Structured event retrieval was unavailable for this response.',
+    eventSources: [] as EventSource[],
+    eventRelated: false,
+  };
+
+  try {
+    eventContext = await buildChatEventContext(
+      options.companyId,
+      userQuery,
+      now,
+    );
+  } catch (error) {
+    warnings.push('Event retrieval was unavailable for this response.');
+    console.error('Error retrieving events:', error);
+  }
 
   try {
     ragContext = await buildRagContext(userQuery, {
       userId: options.userId,
+      companyId: options.companyId,
     });
   } catch (error) {
     retrievalFailed = true;
@@ -212,6 +271,14 @@ export async function generateChatResponse(
         context: ragContext.context,
         sourceCount: ragContext.sourceCount,
         retrievalFailed,
+        systemInstructions: behavior.systemInstructions,
+        eventContext: eventContext.context,
+        eventSourceCount: eventContext.eventSources.length,
+        eventRelated: eventContext.eventRelated,
+        userName: options.userName,
+        currentDateTime: now.toISOString(),
+        currentTimezone:
+          eventContext.eventSources[0]?.timezone ?? env.defaultEventTimezone,
       }),
       ...toLangChainMessages(budgetedMessages),
     ]);
@@ -220,7 +287,9 @@ export async function generateChatResponse(
       conversationId,
       reply: contentToText(response.content).trim() || 'No response.',
       citations: ragContext.citations,
+      eventSources: eventContext.eventSources,
       sourceCount: ragContext.sourceCount,
+      eventSourceCount: eventContext.eventSources.length,
       retrievalFailed,
       contextTruncated: ragContext.truncated,
       warnings,
@@ -228,6 +297,7 @@ export async function generateChatResponse(
 
     await persistChatExchangeSafely({
       userId: options.userId,
+      companyId: options.companyId,
       conversationId,
       userMessage: latestMessage,
       result,
@@ -241,12 +311,14 @@ export async function generateChatResponse(
         conversationId,
         reply:
           'I am currently experiencing high demand and have exceeded my usage quota. Please try again in a moment.',
+        eventSources: eventContext.eventSources,
         retrievalFailed,
         warnings: [...warnings, 'The chat model rate limit was reached.'],
       });
 
       await persistChatExchangeSafely({
         userId: options.userId,
+        companyId: options.companyId,
         conversationId,
         userMessage: latestMessage,
         result,

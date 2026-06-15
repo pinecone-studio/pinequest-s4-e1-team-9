@@ -6,6 +6,7 @@ import { AlertCircle } from 'lucide-react';
 import { joinCompanyByCode } from '@/features/companies/api';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
+import { Surface } from '@/shared/ui/product';
 
 export default function JoinCompany() {
   const [invitationCode, setInvitationCode] = useState('');
@@ -29,11 +30,17 @@ export default function JoinCompany() {
   };
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-md">
-      <h2 className="mb-4 text-xl font-bold">Join a Company</h2>
+    <Surface className="p-6">
+      <h2 className="mb-2 text-xl font-semibold">Join an AI</h2>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Enter the invitation code shared by an Owner.
+      </p>
       <form onSubmit={handleJoin} className="space-y-4">
+        <label htmlFor="invitationCode" className="text-sm font-medium">
+          Invitation code
+        </label>
         <Input
-          placeholder="Enter invitation code"
+          id="invitationCode"
           value={invitationCode}
           onChange={(e) => setInvitationCode(e.target.value)}
           required
@@ -43,11 +50,11 @@ export default function JoinCompany() {
         </Button>
       </form>
       {error && (
-        <div className="mt-4 flex items-center text-sm text-red-600">
+        <div className="mt-4 flex items-center text-sm text-destructive">
           <AlertCircle className="mr-2 h-4 w-4" />
           {error}
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

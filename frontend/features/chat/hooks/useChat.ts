@@ -8,12 +8,11 @@ import {
   isValidConversationId,
   sendChatMessages,
 } from '@/features/chat/api';
-import { uploadDocument } from '@/features/documents/api';
 import type { Conversation, Message, SendPayload } from '@/shared/types/chat';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatComposerHandle } from '../components/ChatComposer';
 
-type BusyState = 'idle' | 'uploading' | 'thinking';
+type BusyState = 'idle' | 'thinking';
 
 function createMessage(input: Omit<Message, 'id'>): Message {
   return {
@@ -28,7 +27,7 @@ function sortConversations(conversations: Conversation[]) {
   );
 }
 
-export function useChat() {
+export function useChat(companyId: string, enabled = true) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -44,11 +43,7 @@ export function useChat() {
 
   const isBusy = busyState !== 'idle' || isConversationLoading;
   const busyLabel =
-    busyState === 'uploading'
-      ? 'Uploading PDF...'
-      : busyState === 'thinking'
-        ? 'Reading documents...'
-        : undefined;
+    busyState === 'thinking' ? 'Reading documents...' : undefined;
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -68,11 +63,15 @@ export function useChat() {
   }, []);
 
   const loadConversations = useCallback(async () => {
+    if (!enabled || !companyId) {
+      return [];
+    }
+
     setIsHistoryLoading(true);
     setErrorMessage(null);
 
     try {
-      const nextConversations = await fetchChatConversations();
+      const nextConversations = await fetchChatConversations(companyId);
       setConversations(nextConversations);
       return nextConversations;
     } catch (error) {
@@ -83,7 +82,7 @@ export function useChat() {
     } finally {
       setIsHistoryLoading(false);
     }
-  }, []);
+  }, [companyId, enabled]);
 
   const patchConversation = useCallback((conversation: Conversation) => {
     if (!isValidConversationId(conversation.id)) {
@@ -99,15 +98,21 @@ export function useChat() {
   }, []);
 
   const lastUserId = useRef<string | null>(null);
+  const lastCompanyId = useRef<string | null>(null);
 
   useEffect(() => {
     const userId = user?.id ?? null;
+    const nextCompanyId = enabled ? companyId : null;
 
-    if (userId === lastUserId.current) {
+    if (
+      userId === lastUserId.current &&
+      nextCompanyId === lastCompanyId.current
+    ) {
       return;
     }
 
     lastUserId.current = userId;
+    lastCompanyId.current = nextCompanyId;
     conversationLoadRequest.current += 1;
     activeConversationId.current = null;
     messagesRef.current = [];
@@ -116,12 +121,12 @@ export function useChat() {
     setConversations([]);
     setErrorMessage(null);
 
-    if (!userId) {
+    if (!userId || !nextCompanyId) {
       return;
     }
 
     void loadConversations().catch(() => undefined);
-  }, [loadConversations, user?.id]);
+  }, [companyId, enabled, loadConversations, user?.id]);
 
   const handleNewChat = useCallback(() => {
     conversationLoadRequest.current += 1;
@@ -153,7 +158,7 @@ export function useChat() {
       setIsConversationLoading(true);
 
       try {
-        const restoredMessages = await fetchConversationMessages(id);
+        const restoredMessages = await fetchConversationMessages(companyId, id);
 
         if (conversationLoadRequest.current !== requestId) {
           return;
@@ -182,7 +187,7 @@ export function useChat() {
         }
       }
     },
-    [commitMessages, loadConversations],
+    [commitMessages, companyId, loadConversations],
   );
 
   const handleDeleteConversation = useCallback(
@@ -204,7 +209,7 @@ export function useChat() {
       setErrorMessage(null);
 
       try {
-        await deleteChatConversation(id);
+        await deleteChatConversation(companyId, id);
         setConversations((current) =>
           current.filter((conversation) => conversation.id !== id),
         );
@@ -223,7 +228,7 @@ export function useChat() {
         setErrorMessage(message);
       }
     },
-    [commitMessages],
+    [commitMessages, companyId],
   );
 
   const appendAssistantMessage = useCallback(
@@ -245,34 +250,35 @@ export function useChat() {
       if (isBusy) return;
 
       setErrorMessage(null);
+
+      if (!companyId) {
+        setErrorMessage('Select an AI workspace before chatting.');
+        return;
+      }
+
+      if (file) {
+        setErrorMessage('Upload workspace PDFs from the dashboard management panel.');
+        return;
+      }
+
       const conversationId = activeConversationId.current;
       const userMessage = createMessage({
         role: 'user',
         content: text,
-        attachment: file ? { name: file.name } : undefined,
       });
       const nextMessages = [...messagesRef.current, userMessage];
 
       commitMessages(nextMessages);
 
       try {
-        if (file) {
-          setBusyState('uploading');
-          await uploadDocument(file);
-
-          if (!text) {
-            appendAssistantMessage(nextMessages, {
-              content: 'PDF uploaded and indexed. Ready when you are.',
-              tone: 'success',
-            });
-            return;
-          }
-        }
-
         if (!text) return;
 
         setBusyState('thinking');
-        const response = await sendChatMessages(nextMessages, conversationId);
+        const response = await sendChatMessages(
+          companyId,
+          nextMessages,
+          conversationId,
+        );
         const serverConversationId = response.conversationId ?? conversationId;
 
         if (serverConversationId) {
@@ -283,6 +289,7 @@ export function useChat() {
         appendAssistantMessage(nextMessages, {
           content: response.reply?.trim() || 'No response.',
           citations: response.citations ?? [],
+          eventSources: response.eventSources ?? [],
         });
 
         if (response.conversation) {
@@ -299,10 +306,7 @@ export function useChat() {
           error instanceof Error ? error.message : 'Unknown error.';
         setErrorMessage(message);
         appendAssistantMessage(messagesRef.current, {
-          content:
-            file && !text
-              ? `Upload failed: ${message}`
-              : `Request failed: ${message}`,
+          content: `Request failed: ${message}`,
           tone: 'error',
         });
       } finally {
@@ -311,6 +315,7 @@ export function useChat() {
     },
     [
       appendAssistantMessage,
+      companyId,
       commitMessages,
       isBusy,
       loadConversations,
@@ -321,6 +326,10 @@ export function useChat() {
   const handleEditMessage = useCallback(
     async (messageId: string, newContent: string) => {
       if (isBusy) return;
+      if (!companyId) {
+        setErrorMessage('Select an AI workspace before chatting.');
+        return;
+      }
 
       const conversationId = activeConversationId.current;
       const index = messagesRef.current.findIndex((m) => m.id === messageId);
@@ -340,7 +349,11 @@ export function useChat() {
 
       try {
         setBusyState('thinking');
-        const response = await sendChatMessages(nextMessages, conversationId);
+        const response = await sendChatMessages(
+          companyId,
+          nextMessages,
+          conversationId,
+        );
         const serverConversationId = response.conversationId ?? conversationId;
 
         if (serverConversationId) {
@@ -376,6 +389,7 @@ export function useChat() {
     },
     [
       appendAssistantMessage,
+      companyId,
       commitMessages,
       isBusy,
       loadConversations,

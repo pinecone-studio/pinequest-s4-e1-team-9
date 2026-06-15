@@ -13,31 +13,63 @@ enum CompanyRole {
   MEMBER
 }
 
+enum EventStatus {
+  SCHEDULED @map("scheduled")
+  CANCELLED @map("cancelled")
+
+  @@map("EventStatus")
+}
+
 model Company {
-  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String
-  domain          String?
-  invitationCode  String          @unique @map("invitation_code")
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  members         CompanyMember[]
-  documents       UserDocument[]
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  domain             String?
+  invitationCode     String          @unique @map("invitation_code")
+  description        String?
+  useCaseType        String          @default("custom") @map("use_case_type")
+  setupStatus        String          @default("READY") @map("setup_status")
+  setupStep          Int             @default(0) @map("setup_step")
+  setupOwnerId       String?         @map("setup_owner_id") @db.Uuid
+  aiConfiguration    Json?           @map("ai_configuration")
+  systemInstructions String?         @map("system_instructions")
+  finalizedAt        DateTime?       @map("finalized_at") @db.Timestamptz(6)
+  archivedAt         DateTime?       @map("archived_at") @db.Timestamptz(6)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  members            CompanyMember[]
+  documents          UserDocument[]
+  chatMessages       ChatMessage[]
+  inviteCodes        InviteCode[]
+  events             AiEvent[]
 
   @@map("companies")
 }
 
+model UserProfile {
+  userId                 String   @id @map("user_id") @db.Uuid
+  name                   String
+  requiresNameCompletion Boolean  @default(false) @map("requires_name_completion")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("user_profiles")
+}
+
 model CompanyMember {
-  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId String      @map("company_id") @db.Uuid
-  userId    String      @map("user_id") @db.Uuid
-  role      CompanyRole @default(MEMBER)
-  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String      @map("company_id") @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  role         CompanyRole @default(MEMBER)
+  invitationId String?     @map("invitation_id") @db.Uuid
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitation   InviteCode? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, userId])
   @@index([userId])
   @@index([companyId, role])
+  @@index([invitationId])
   @@map("company_members")
 }
 
@@ -86,14 +118,81 @@ model DocumentChunk {
 model ChatMessage {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId         String   @map("user_id") @db.Uuid
+  companyId      String?  @map("company_id") @db.Uuid
   conversationId String?  @map("conversation_id") @db.Uuid
   role           String
   content        String
   metadata       Json?
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  company        Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([companyId])
+  @@index([userId, companyId])
   @@index([userId, createdAt])
   @@index([userId, conversationId, createdAt])
+  @@index([userId, companyId, conversationId, createdAt])
   @@map("chat_messages")
+}
+
+model InviteCode {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String             @map("company_id") @db.Uuid
+  createdBy   String             @map("created_by") @db.Uuid
+  tokenHash   String             @unique @map("token_hash")
+  expiresAt   DateTime           @map("expires_at") @db.Timestamptz(6)
+  revokedAt   DateTime?          @map("revoked_at") @db.Timestamptz(6)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  memberships CompanyMember[]
+  redemptions InviteRedemption[]
+
+  @@index([companyId, revokedAt, expiresAt])
+  @@index([createdBy])
+  @@map("invite_codes")
+}
+
+model InviteRedemption {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inviteId   String     @map("invite_id") @db.Uuid
+  companyId  String     @map("company_id") @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  redeemedAt DateTime   @default(now()) @map("redeemed_at") @db.Timestamptz(6)
+  invite     InviteCode @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteId, userId])
+  @@index([companyId, redeemedAt])
+  @@index([userId])
+  @@map("invite_redemptions")
+}
+
+model AiEvent {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String      @map("company_id") @db.Uuid
+  title       String
+  description String?
+  startsAt    DateTime    @map("starts_at") @db.Timestamptz(6)
+  endsAt      DateTime?   @map("ends_at") @db.Timestamptz(6)
+  timezone    String
+  location    String?
+  meetingUrl  String?     @map("meeting_url")
+  status      EventStatus @default(SCHEDULED)
+  createdBy   String      @map("created_by") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, startsAt])
+  @@index([companyId, status, startsAt])
+  @@index([createdBy])
+  @@map("events")
+}
+
+model UserPreference {
+  userId                String    @id @map("user_id") @db.Uuid
+  lastSelectedCompanyId String?   @map("last_selected_company_id") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("user_preferences")
 }

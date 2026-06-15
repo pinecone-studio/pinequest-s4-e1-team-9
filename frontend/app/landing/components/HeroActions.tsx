@@ -1,6 +1,8 @@
 'use client';
 
 import { useAuth } from '@/features/auth/AuthProvider';
+import { Button } from '@/shared/ui/button';
+import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function HeroActions() {
@@ -8,17 +10,19 @@ export default function HeroActions() {
   const { session, isLoading } = useAuth();
   const isAuthenticated = !isLoading && Boolean(session);
 
-  const chatLabel = isAuthenticated ? 'Open Chat' : 'Chat with My Company Bot';
+  const chatLabel = isAuthenticated ? 'Open chat' : 'Try the demo';
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 sm:mb-24">
-      <button
+    <div className="mt-8 mb-10 flex flex-col gap-3 sm:flex-row">
+      <Button
         type="button"
-        onClick={() => router.push('/chat')}
-        className="w-full sm:w-auto bg-background text-foreground border-2 border-border text-[18px] font-medium px-10 py-5 rounded-full hover:bg-secondary transition-colors shadow-sm"
+        onClick={() => router.push(isAuthenticated ? '/chat' : '/auth/sign-in')}
+        size="lg"
+        className="w-full sm:w-auto"
       >
         {chatLabel}
-      </button>
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </Button>
     </div>
   );
 }

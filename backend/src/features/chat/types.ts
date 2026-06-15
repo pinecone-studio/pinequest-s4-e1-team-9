@@ -9,6 +9,7 @@ export type ChatMessageHistoryItem = ChatMessage & {
   id: string;
   createdAt: string;
   citations?: unknown[];
+  eventSources?: unknown[];
 };
 
 export type ChatConversationSummary = {

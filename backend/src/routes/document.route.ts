@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getAuthenticatedUserId } from '../features/auth/auth.service.js';
+import { requireCompanyMember } from '../features/companies/authorization.service.js';
 import { createDocumentPdfSignedUrl } from '../features/documents/storage.service.js';
 import { DocumentProcessingError } from '../features/documents/types.js';
 import { sendJson } from '../server/errors.js';
@@ -32,23 +33,42 @@ export async function handleDocumentPdfUrlRoute(
     }
 
     const userId = await getAuthenticatedUserId(req);
-    const { getUserDocument } = await import('../db/repositories/documents.repo.js');
-    const document = await getUserDocument(userId, documentId);
+    const { getDocumentById } = await import(
+      '../db/repositories/documents.repo.js'
+    );
+    const document = await getDocumentById(documentId);
 
     if (!document) {
       throw new DocumentProcessingError('Document not found.', 404);
     }
 
+    if (document.companyId) {
+      await requireCompanyMember(userId, document.companyId);
+    } else if (document.userId !== userId) {
+      throw new DocumentProcessingError('Document not found.', 404);
+    }
+
     if (!document.storagePath) {
-      throw new DocumentProcessingError('The original PDF is not available for this document.', 404);
+      throw new DocumentProcessingError(
+        'The original PDF is not available for this document.',
+        404,
+      );
     }
 
     const signedUrl = await createDocumentPdfSignedUrl(document.storagePath);
     sendJson(res, 200, signedUrl, headers);
   } catch (error) {
-    const statusCode = error instanceof DocumentProcessingError ? error.statusCode : 500;
-    const clientMessage = error instanceof DocumentProcessingError ? error.message : 'Failed to create PDF link.';
-    console.error('Document PDF URL route failure:', error);
+    const statusCode =
+      error instanceof DocumentProcessingError ? error.statusCode : 500;
+    const clientMessage =
+      error instanceof DocumentProcessingError
+        ? error.message
+        : 'Failed to create PDF link.';
+
+    if (statusCode >= 500) {
+      console.error('Document PDF URL route failure:', error);
+    }
+
     sendJson(res, statusCode, { error: clientMessage }, headers);
   }
 

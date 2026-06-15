@@ -23,29 +23,25 @@ interface ChatComposerProps {
 const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
   function ChatComposer({ onSend, disabled = false }, ref) {
     const [input, setInput] = useState('');
-    const [attachedFile, setAttachedFile] = useState<File | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     useImperativeHandle(ref, () => ({
       focus: () => inputRef.current?.focus(),
       reset: () => {
         setInput('');
-        setAttachedFile(null);
         if (inputRef.current) inputRef.current.style.height = 'auto';
       },
     }));
 
     const handleSend = useCallback(async () => {
       const text = input.trim();
-      if ((!text && !attachedFile) || disabled) return;
+      if (!text || disabled) return;
 
-      const file = attachedFile;
       setInput('');
-      setAttachedFile(null);
       if (inputRef.current) inputRef.current.style.height = 'auto';
 
-      await onSend({ text, file });
-    }, [input, attachedFile, disabled, onSend]);
+      await onSend({ text, file: null });
+    }, [input, disabled, onSend]);
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -63,9 +59,6 @@ const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
         onChange={setInput}
         onSend={handleSend}
         onKeyDown={handleKeyDown}
-        onFileSelect={setAttachedFile}
-        onRemoveAttachment={() => setAttachedFile(null)}
-        attachedFile={attachedFile}
         disabled={disabled}
         inputRef={inputRef}
       />
